@@ -1,28 +1,33 @@
 const keypress = require('keypress');
 const easymidi = require('easymidi');
 
+// FIXME: how implement other virtual-controls like faders or such?
+// FIXME: how to draw on the CLI the current UI layout?
+
 ////// PADS
 //
-//    q w e r t y u i o p (1-10)
-//    a s d f g h j k l ñ (11-20)
+//    1 2 3 4 5 6 7 8 9 0 (1-10)
+//    Q W E R T Y U I O P (11-20)
+//    A S D F G H J K L Ñ (21-20)
 // ^
 //  `--type sequence + ENTER to on/off
 //
-// <> z x c v b n m , . - (arrangement timeline)
+// <> Z X C V B N M , . - (arrangement timeline)
 // ^
 //  `--left/right presets
 //
 ////// KEYBOARD
 //
-//      s d   g h j
-// <> z x c v b n m
+//     S D   G H J
+// <> Z X C V B N M
 // ^
 //  `--down/up octaves
 
 const MAPPINGS = {
-  'q': null, 'w': null, 'e': null, 'r': null, 't': null, 'y': null, 'u': null, 'i': null, 'o': null, 'p': null,
-  'a': null, 's': null, 'd': null, 'f': null, 'g': null, 'h': null, 'j': null, 'k': null, 'l': null, 'ñ': null,
-  'z': null, 'x': null, 'c': null, 'v': null, 'b': null, 'n': null, 'm': null, ',': null, '.': null, '-': null,
+  '1': null, '2': null, '3': null, '4': null, '5': null, '6': null, '7': null, '8': null, '9': null, '0': null,
+  'Q': null, 'W': null, 'E': null, 'R': null, 'T': null, 'Y': null, 'U': null, 'I': null, 'O': null, 'P': null,
+  'A': null, 'S': null, 'D': null, 'F': null, 'G': null, 'H': null, 'J': null, 'K': null, 'L': null, 'Ñ': null,
+  'Z': null, 'X': null, 'C': null, 'V': null, 'B': null, 'N': null, 'M': null, ',': null, '.': null, '-': null,
 };
 
 const PRESETS = [];
@@ -39,18 +44,43 @@ const PRESETS = [];
 // 8. 89-100
 
 const NOTES = {
-  z: { note: 5, pitch: 1, name: 'C' },
-  s: { note: 6, pitch: 1, name: 'C♯/D♭' },
-  x: { note: 7, pitch: 1, name: 'D' },
-  d: { note: 8, pitch: 1, name: 'D♯/E♭' },
-  c: { note: 9, pitch: 1, name: 'E' },
-  v: { note: 10, pitch: 1, name: 'F' },
-  g: { note: 11, pitch: 1, name: 'F♯/G♭' },
-  b: { note: 12, pitch: 1, name: 'G' },
-  h: { note: 13, pitch: 1, name: 'G♯/A♭' },
-  n: { note: 14, pitch: 1, name: 'A' },
-  j: { note: 15, pitch: 1, name: 'A♯/B♭' },
-  m: { note: 16, pitch: 1, name: 'B' },
+  ////// LOWER NOTES
+  'Z': { note: 5, pitch: 1, name: 'C' },
+  'S': { note: 6, pitch: 1, name: 'C♯/D♭' },
+  'X': { note: 7, pitch: 1, name: 'D' },
+  'D': { note: 8, pitch: 1, name: 'D♯/E♭' },
+  'C': { note: 9, pitch: 1, name: 'E' },
+  'V': { note: 10, pitch: 1, name: 'F' },
+  'G': { note: 11, pitch: 1, name: 'F♯/G♭' },
+  'B': { note: 12, pitch: 1, name: 'G' },
+  'H': { note: 13, pitch: 1, name: 'G♯/A♭' },
+  'N': { note: 14, pitch: 1, name: 'A' },
+  'J': { note: 15, pitch: 1, name: 'A♯/B♭' },
+  'M': { note: 16, pitch: 1, name: 'B' },
+  ',': { note: 17, pitch: 1, name: 'C' },
+  'L': { note: 18, pitch: 1, name: 'C♯/D♭' },
+  '.': { note: 19, pitch: 1, name: 'D' },
+  'Ñ': { note: 20, pitch: 1, name: 'D♯/E♭' },
+  '-': { note: 21, pitch: 1, name: 'E' },
+
+  ////// HIGHER NOTES
+  'Q': { note: 17, pitch: 1, name: 'C' },
+  'W': { note: 18, pitch: 1, name: 'C♯/D♭' },
+  '2': { note: 19, pitch: 1, name: 'D' },
+  '3': { note: 20, pitch: 1, name: 'D♯/E♭' },
+  'E': { note: 21, pitch: 1, name: 'E' },
+  'R': { note: 22, pitch: 1, name: 'F' },
+  '5': { note: 23, pitch: 1, name: 'F♯/G♭' },
+  'T': { note: 24, pitch: 1, name: 'G' },
+  '6': { note: 25, pitch: 1, name: 'G♯/A♭' },
+  'Y': { note: 26, pitch: 1, name: 'A' },
+  '7': { note: 27, pitch: 1, name: 'A♯/B♭' },
+  'U': { note: 28, pitch: 1, name: 'C' },
+  'I': { note: 29, pitch: 1, name: 'C♯/D♭' },
+  '9': { note: 30, pitch: 1, name: 'D' },
+  'O': { note: 31, pitch: 1, name: 'D♯/E♭' },
+  '0': { note: 32, pitch: 1, name: 'E' },
+  'P': { note: 33, pitch: 1, name: 'F' },
 };
 
 class Controller {
@@ -76,6 +106,8 @@ class Controller {
     } else {
       this.out = new easymidi.Output(deviceName, true);
     }
+
+    this.out.send('sysex', [240, 173, 245, 1, 17, 2, 247]);
 
     keypress(process.stdin);
 
@@ -107,12 +139,15 @@ class Controller {
             done = this.push(MAPPINGS[ch]);
           }
 
-          if (this._mode === 'KBD' && NOTES[ch]) {
-            done = this.send(NOTES[ch]);
+          const fixedKey = (key && key.name) || ch;
+          const char = fixedKey.toUpperCase();
+
+          if (this._mode === 'KBD' && NOTES[char]) {
+            done = this.send(NOTES[char], key && key.shift);
           }
 
           if (done !== true) {
-            console.log(ch, key);
+            console.log(char, key);
           }
         }
       }
@@ -191,14 +226,14 @@ class Controller {
   }
 
   // FIXME: try supporting keydown/keyup with https://github.com/wilix-team/iohook for real pressure?
-  send(ch) {
+  send(ch, accent) {
     this.render(ch.name);
 
     const fixedNote = ch.note + (12 * (this._octave - 1));
 
     this.out.send('noteon', {
       note: fixedNote,
-      velocity: 90,
+      velocity: accent ? 127 : 90,
       channel: 0
     });
 
