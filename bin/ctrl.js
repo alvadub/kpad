@@ -3,6 +3,7 @@ const easymidi = require('easymidi');
 
 // FIXME: how implement other virtual-controls like faders or such?
 // FIXME: how to draw on the CLI the current UI layout?
+// FIXME: split into smaller modules
 
 ////// PADS
 //
@@ -23,14 +24,7 @@ const easymidi = require('easymidi');
 // ^
 //  `--down/up octaves
 
-const MAPPINGS = {
-  '1': null, '2': null, '3': null, '4': null, '5': null, '6': null, '7': null, '8': null, '9': null, '0': null,
-  'Q': null, 'W': null, 'E': null, 'R': null, 'T': null, 'Y': null, 'U': null, 'I': null, 'O': null, 'P': null,
-  'A': null, 'S': null, 'D': null, 'F': null, 'G': null, 'H': null, 'J': null, 'K': null, 'L': null, 'Ñ': null,
-  'Z': null, 'X': null, 'C': null, 'V': null, 'B': null, 'N': null, 'M': null, ',': null, '.': null, '-': null,
-};
-
-const PRESETS = [];
+// FIXME: read/write state and load/save from/to biwtwig? :V
 
 ////// OCTAVES
 //
@@ -84,13 +78,12 @@ const NOTES = {
 };
 
 const ACTIONS = [
+  // FIXME: see if these can be sent also as sysex... or not
   (ch, key, ctrl) => key && key.name === 'up' && ctrl.up(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'down' && ctrl.down(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'right' && ctrl.right(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'escape' && ctrl.stop(),
-  (ch, key, ctrl) => key && key.name === 'space' && ctrl.play(),
-  (ch, key, ctrl) => key && key.name === 'tab' && ctrl.toggle(key && key.shift),
+  (ch, key, ctrl) => key && key.name === 'escape' && ctrl.toggle(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'KBD' && ctrl.dec(),
   (ch, key, ctrl) => ch === '>' && ctrl._mode === 'KBD' && ctrl.inc(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'PAD' && ctrl.prev(),
@@ -100,9 +93,11 @@ const ACTIONS = [
 class Controller {
   constructor() {
     this._interval = 100;
+    this._buffer = [];
     this._timers = {};
     this._octave = 3;
     this._preset = 1;
+    this._channel = 0;
     this._mode = 'KBD';
 
     // volume
@@ -112,7 +107,7 @@ class Controller {
     this._active = 0;
     this._levels = [];
 
-    const deviceName = `NodeJS ${process.version}`;
+    const deviceName = 'kPAD I';
 
     if (process.platform === 'win32') {
       const outputs = easymidi.getOutputs();
@@ -146,15 +141,15 @@ class Controller {
         });
 
         if (done !== true) {
-          if (this._mode === 'PAD' && MAPPINGS[ch]) {
-            this.push(MAPPINGS[ch]);
-          }
-
           const fixedKey = (key && key.name) || ch;
           const char = fixedKey.toUpperCase();
 
           if (this._mode === 'KBD' && NOTES[char]) {
-            this.send(NOTES[char], key && key.shift);
+            done = this.sendMidi(NOTES[char], key && key.shift);
+          }
+
+          if (done !== true) {
+            this.tap(ch, key);
           }
         }
       }
@@ -162,6 +157,10 @@ class Controller {
 
     process.stdin.setRawMode(true);
     process.stdin.resume();
+  }
+
+  log(...msg) {
+    this.ln(msg.join(' '), '\n');
   }
 
   ln(value, suffix) {
@@ -184,19 +183,23 @@ class Controller {
     // FIXME: use colors for these values? e.g. red/orange/yellow/green?
     const levelInfo = this.format(`${this._master}:${this._active}/${current}`, 2);
 
-    this.ln(`${this.format(this._mode, 4)}${this.pad(offset)} ${levelInfo} ${label}`);
+    this.ln(`#${this._channel} ${this.format(this._mode, 4)}${this.pad(offset)} ${levelInfo} ${label}`);
   }
 
   toggle(shift) {
-    if (shift) {
-      this.out.send('sysex', [240, 127, 127, 6, 5, 247]);
-    } else if (this._mode === 'KBD') {
+    if (this._mode === 'KBD') {
       this._mode = 'PAD';
     } else {
       this._mode = 'KBD';
     }
     this.render();
     return true;
+  }
+
+  tap(ch, key) {
+    const value = key ? key.name : ch;
+
+    this.send((key && key.shift) ? value.toUpperCase() : value);
   }
 
   up(shift) {
@@ -223,14 +226,22 @@ class Controller {
     return true;
   }
 
-  left() {
-    this._active = Math.max(0, this._active - 1);
+  left(shift) {
+    if (shift) {
+      this._channel = Math.max(0, this._channel - 1);
+    } else {
+      this._active = Math.max(0, this._active - 1);
+    }
     this.render();
     return true;
   }
 
-  right() {
-    this._active = Math.min(10, this._active + 1);
+  right(shift) {
+    if (shift) {
+      this._channel = Math.min(10, this._channel + 1);
+    } else {
+      this._active = Math.min(10, this._active + 1);
+    }
     this.render();
     return true;
   }
@@ -259,23 +270,23 @@ class Controller {
     return true;
   }
 
-  stop() {
-    this.out.send('sysex', [240, 127, 127, 6, 1, 247]);
-    return true;
-  }
+  send(value) {
+    const code = value.split('').map(x => x.charCodeAt());
 
-  play() {
-    this.out.send('sysex', [240, 127, 127, 6, 2, 247]);
-    return true;
-  }
+    if (code.length === 1) {
+      code.unshift('\0');
+    }
 
-  push(ch) {
-    console.log('MAPPINGS', ch);
+    const hex = code.map(x => x.toString(16)).join('');
+
+    this.log(value, `f0${hex}f7`);
+    this.out.send('sysex', [240, ...code, 247]);
+
     return true;
   }
 
   // FIXME: try supporting keydown/keyup with https://github.com/wilix-team/iohook for real pressure?
-  send(ch, accent) {
+  sendMidi(ch, accent) {
     this.render(ch.name);
 
     const fixedNote = ch.note + (12 * (this._octave - 1));
@@ -284,7 +295,7 @@ class Controller {
     this.out.send('noteon', {
       note: fixedNote,
       velocity: Math.min(127, accent ? fixedAccent : this._master),
-      channel: 0
+      channel: this._channel,
     });
 
     clearTimeout(this._timers[ch.name]);
@@ -294,8 +305,8 @@ class Controller {
 
       this.out.send('noteoff', {
         note: fixedNote,
-        velocity: 90,
-        channel: 0
+        velocity: this._master,
+        channel: this._channel,
       });
     }, this._interval);
 

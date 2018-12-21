@@ -6,7 +6,13 @@
   "bin": {
     "kpad": "bin/cli"
   },
-  "keywords": ["bitwig", "studio", "midi", "virtual", "controller"],
+  "keywords": [
+    "bitwig",
+    "studio",
+    "midi",
+    "virtual",
+    "controller"
+  ],
   "author": "Alvaro Cabrera <yo@soypache.co>",
   "license": "MIT",
   "dependencies": {
