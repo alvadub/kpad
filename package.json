@@ -1,14 +1,14 @@
 {
-  "name": "kmid",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "name": "kpad",
+  "version": "0.0.0",
+  "description": "Virtual MIDI controller for Bitwig Studio",
+  "main": "bin/ctrl.js",
+  "bin": {
+    "kpad": "bin/cli"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["bitwig", "studio", "midi", "virtual", "controller"],
+  "author": "Alvaro Cabrera <yo@soypache.co>",
+  "license": "MIT",
   "dependencies": {
     "easymidi": "^1.0.1",
     "keypress": "^0.2.1"

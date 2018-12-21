@@ -303,6 +303,4 @@ class Controller {
   }
 }
 
-const ctrl = new Controller();
-
-ctrl.render();
+module.exports = Controller;
