@@ -83,6 +83,20 @@ const NOTES = {
   'P': { note: 33, pitch: 1, name: 'F' },
 };
 
+const ACTIONS = [
+  (ch, key, ctrl) => key && key.name === 'up' && ctrl.up(key && key.shift),
+  (ch, key, ctrl) => key && key.name === 'down' && ctrl.down(key && key.shift),
+  (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
+  (ch, key, ctrl) => key && key.name === 'right' && ctrl.right(key && key.shift),
+  (ch, key, ctrl) => key && key.name === 'escape' && ctrl.stop(),
+  (ch, key, ctrl) => key && key.name === 'space' && ctrl.play(),
+  (ch, key, ctrl) => key && key.name === 'tab' && ctrl.toggle(key && key.shift),
+  (ch, key, ctrl) => ch === '<' && ctrl._mode === 'KBD' && ctrl.dec(),
+  (ch, key, ctrl) => ch === '>' && ctrl._mode === 'KBD' && ctrl.inc(),
+  (ch, key, ctrl) => ch === '<' && ctrl._mode === 'PAD' && ctrl.prev(),
+  (ch, key, ctrl) => ch === '>' && ctrl._mode === 'PAD' && ctrl.next(),
+];
+
 class Controller {
   constructor() {
     this._interval = 100;
@@ -90,6 +104,13 @@ class Controller {
     this._octave = 3;
     this._preset = 1;
     this._mode = 'KBD';
+
+    // volume
+    this._master = 90;
+
+    // effects
+    this._active = 0;
+    this._levels = [];
 
     const deviceName = `NodeJS ${process.version}`;
 
@@ -111,16 +132,6 @@ class Controller {
 
     keypress(process.stdin);
 
-    const actions = [
-      (ch, key) => key && key.name === 'escape' && this.stop(),
-      (ch, key) => key && key.name === 'space' && this.play(),
-      (ch, key) => key && key.name === 'tab' && this.toggle(),
-      ch => ch === '<' && this._mode === 'KBD' && this.down(),
-      ch => ch === '>' && this._mode === 'KBD' && this.up(),
-      ch => ch === '<' && this._mode === 'PAD' && this.left(),
-      ch => ch === '>' && this._mode === 'PAD' && this.right(),
-    ];
-
     process.stdin.on('keypress', (ch, key) => {
       if (key && key.ctrl && key.name === 'c') {
         this.ln(this.format('OFF', 2), '\n');
@@ -129,25 +140,21 @@ class Controller {
       } else {
         let done;
 
-        actions.some(cb => {
+        ACTIONS.some(cb => {
           done = cb(ch, key, this);
           return done;
         });
 
         if (done !== true) {
           if (this._mode === 'PAD' && MAPPINGS[ch]) {
-            done = this.push(MAPPINGS[ch]);
+            this.push(MAPPINGS[ch]);
           }
 
           const fixedKey = (key && key.name) || ch;
           const char = fixedKey.toUpperCase();
 
           if (this._mode === 'KBD' && NOTES[char]) {
-            done = this.send(NOTES[char], key && key.shift);
-          }
-
-          if (done !== true) {
-            console.log(char, key);
+            this.send(NOTES[char], key && key.shift);
           }
         }
       }
@@ -172,12 +179,18 @@ class Controller {
   render(value) {
     const label = value ? this.format(value, '30;43') : '';
     const offset = this._mode === 'KBD' ? this._octave : this._preset;
+    const current = this._levels[this._active] || 0;
 
-    this.ln(`${this.format(this._mode, 4)}${this.pad(offset)}${label}`);
+    // FIXME: use colors for these values? e.g. red/orange/yellow/green?
+    const levelInfo = this.format(`${this._master}:${this._active}/${current}`, 2);
+
+    this.ln(`${this.format(this._mode, 4)}${this.pad(offset)} ${levelInfo} ${label}`);
   }
 
-  toggle() {
-    if (this._mode === 'KBD') {
+  toggle(shift) {
+    if (shift) {
+      this.out.send('sysex', [240, 127, 127, 6, 5, 247]);
+    } else if (this._mode === 'KBD') {
       this._mode = 'PAD';
     } else {
       this._mode = 'KBD';
@@ -186,25 +199,61 @@ class Controller {
     return true;
   }
 
-  up() {
-    this._octave = Math.min(8, this._octave + 1);
+  up(shift) {
+    const step = shift ? 10 : 1;
+
+    if (this._active) {
+      this._levels[this._active] = Math.min(127, (this._levels[this._active] || 0) + step);
+    } else {
+      this._master = Math.min(127, this._master + step);
+    }
     this.render();
     return true;
   }
 
-  down() {
-    this._octave = Math.max(1, this._octave - 1);
+  down(shift) {
+    const step = shift ? 10 : 1;
+
+    if (this._active) {
+      this._levels[this._active] = Math.max(0, (this._levels[this._active] || 0) - step);
+    } else {
+      this._master = Math.max(0, this._master - step);
+    }
     this.render();
     return true;
   }
 
   left() {
-    this._preset = Math.max(1, this._preset - 1);
+    this._active = Math.max(0, this._active - 1);
     this.render();
     return true;
   }
 
   right() {
+    this._active = Math.min(10, this._active + 1);
+    this.render();
+    return true;
+  }
+
+  inc() {
+    this._octave = Math.min(8, this._octave + 1);
+    this.render();
+    return true;
+  }
+
+  dec() {
+    this._octave = Math.max(1, this._octave - 1);
+    this.render();
+    return true;
+  }
+
+  prev() {
+    this._preset = Math.max(1, this._preset - 1);
+    this.render();
+    return true;
+  }
+
+  next() {
     this._preset = Math.min(10, this._preset + 1);
     this.render();
     return true;
@@ -220,8 +269,8 @@ class Controller {
     return true;
   }
 
-  push() {
-    console.log('MAPPINGS');
+  push(ch) {
+    console.log('MAPPINGS', ch);
     return true;
   }
 
@@ -230,10 +279,11 @@ class Controller {
     this.render(ch.name);
 
     const fixedNote = ch.note + (12 * (this._octave - 1));
+    const fixedAccent = this._master + (this._master / 100 * 20);
 
     this.out.send('noteon', {
       note: fixedNote,
-      velocity: accent ? 127 : 90,
+      velocity: Math.min(127, accent ? fixedAccent : this._master),
       channel: 0
     });
 
