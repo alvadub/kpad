@@ -27,19 +27,30 @@ const MAPPINGS = {
 
 const PRESETS = [];
 
+////// OCTAVES
+//
+// 1.  5-16
+// 2. 17-28
+// 3. 29-40
+// 4. 41-52
+// 5. 53-64
+// 6. 65-76
+// 7. 77-88
+// 8. 89-100
+
 const NOTES = {
-  z: { note: 41, pitch: 1, name: 'C' },
-  s: { note: 42, pitch: 1, name: 'C♯/D♭' },
-  x: { note: 43, pitch: 1, name: 'D' },
-  d: { note: 44, pitch: 1, name: 'D♯/E♭' },
-  c: { note: 45, pitch: 1, name: 'E' },
-  v: { note: 46, pitch: 1, name: 'F' },
-  g: { note: 47, pitch: 1, name: 'F♯/G♭' },
-  b: { note: 48, pitch: 1, name: 'G' },
-  h: { note: 49, pitch: 1, name: 'G♯/A♭' },
-  n: { note: 50, pitch: 1, name: 'A' },
-  j: { note: 51, pitch: 1, name: 'A♯/B♭' },
-  m: { note: 52, pitch: 1, name: 'B' },
+  z: { note: 5, pitch: 1, name: 'C' },
+  s: { note: 6, pitch: 1, name: 'C♯/D♭' },
+  x: { note: 7, pitch: 1, name: 'D' },
+  d: { note: 8, pitch: 1, name: 'D♯/E♭' },
+  c: { note: 9, pitch: 1, name: 'E' },
+  v: { note: 10, pitch: 1, name: 'F' },
+  g: { note: 11, pitch: 1, name: 'F♯/G♭' },
+  b: { note: 12, pitch: 1, name: 'G' },
+  h: { note: 13, pitch: 1, name: 'G♯/A♭' },
+  n: { note: 14, pitch: 1, name: 'A' },
+  j: { note: 15, pitch: 1, name: 'A♯/B♭' },
+  m: { note: 16, pitch: 1, name: 'B' },
 };
 
 class Controller {
@@ -179,12 +190,15 @@ class Controller {
     return true;
   }
 
+  // FIXME: try supporting keydown/keyup with https://github.com/wilix-team/iohook for real pressure?
   send(ch) {
     this.render(ch.name);
 
+    const fixedNote = ch.note + (12 * (this._octave - 1));
+
     this.out.send('noteon', {
-      note: ch.note,
-      velocity: 127,
+      note: fixedNote,
+      velocity: 90,
       channel: 0
     });
 
@@ -194,8 +208,8 @@ class Controller {
       this.render();
 
       this.out.send('noteoff', {
-        note: ch.note,
-        velocity: 127,
+        note: fixedNote,
+        velocity: 90,
         channel: 0
       });
     }, this._interval);
