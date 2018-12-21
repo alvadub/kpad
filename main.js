@@ -176,12 +176,12 @@ class Controller {
   }
 
   stop() {
-    console.log('STOP');
+    this.out.send('sysex', [240, 127, 127, 6, 1, 247]);
     return true;
   }
 
   play() {
-    console.log('PLAY/PAUSE');
+    this.out.send('sysex', [240, 127, 127, 6, 2, 247]);
     return true;
   }
 
