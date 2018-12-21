@@ -4,9 +4,6 @@ host.setShouldFailOnDeprecatedUse(true);
 host.defineController('Generic', 'kPad', '1.0', 'F3CFFC62-4B9E-4703-91EC-6741E3419572');
 host.defineMidiPorts(1, 0);
 
-const LOWEST_CC = 1;
-const HIGHEST_CC = 119;
-
 // FIXME: this can be generated?
 const CTRL_ACTIONS = {
   f072657475726ef7: function () { transport.play(); },
