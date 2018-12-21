@@ -10,7 +10,7 @@ const easymidi = require('easymidi');
 //
 // <> z x c v b n m , . - (arrangement timeline)
 // ^
-//  `--left/right presets ()
+//  `--left/right presets
 //
 ////// KEYBOARD
 //
@@ -24,6 +24,8 @@ const MAPPINGS = {
   'a': null, 's': null, 'd': null, 'f': null, 'g': null, 'h': null, 'j': null, 'k': null, 'l': null, 'ñ': null,
   'z': null, 'x': null, 'c': null, 'v': null, 'b': null, 'n': null, 'm': null, ',': null, '.': null, '-': null,
 };
+
+const PRESETS = [];
 
 const NOTES = {
   z: { note: 41, pitch: 1, name: 'C' },
@@ -40,16 +42,12 @@ const NOTES = {
   m: { note: 52, pitch: 1, name: 'B' },
 };
 
-const ACTIONS = [
-  (ch, key, ctrl) => key.name === 'escape' && ctrl.stop(),
-  (ch, key, ctrl) => key.name === 'space' && ctrl.play(),
-  (ch, key, ctrl) => key.name === 'tab' && ctrl.toggle(),
-];
-
 class Controller {
   constructor() {
     this._interval = 100;
     this._timers = {};
+    this._octave = 3;
+    this._preset = 1;
     this._mode = 'KBD';
 
     const deviceName = `NodeJS ${process.version}`;
@@ -70,31 +68,40 @@ class Controller {
 
     keypress(process.stdin);
 
-    process.stdin.on('keypress', (ch, key) => {
-      if (key) {
-        if (key.ctrl && key.name === 'c') {
-          process.stdin.pause();
-          process.exit();
-        } else {
-          let done;
+    const actions = [
+      (ch, key) => key && key.name === 'escape' && this.stop(),
+      (ch, key) => key && key.name === 'space' && this.play(),
+      (ch, key) => key && key.name === 'tab' && this.toggle(),
+      ch => ch === '<' && this._mode === 'KBD' && this.down(),
+      ch => ch === '>' && this._mode === 'KBD' && this.up(),
+      ch => ch === '<' && this._mode === 'PAD' && this.left(),
+      ch => ch === '>' && this._mode === 'PAD' && this.right(),
+    ];
 
-          ACTIONS.some(cb => {
-            done = cb(ch, key, this);
-            return done;
-          });
+    process.stdin.on('keypress', (ch, key) => {
+      if (key && key.ctrl && key.name === 'c') {
+        this.ln(this.format('OFF', 2), '\n');
+        process.stdin.pause();
+        process.exit();
+      } else {
+        let done;
+
+        actions.some(cb => {
+          done = cb(ch, key, this);
+          return done;
+        });
+
+        if (done !== true) {
+          if (this._mode === 'PAD' && MAPPINGS[ch]) {
+            done = this.push(MAPPINGS[ch]);
+          }
+
+          if (this._mode === 'KBD' && NOTES[ch]) {
+            done = this.send(NOTES[ch]);
+          }
 
           if (done !== true) {
-            if (this._mode === 'PAD' && MAPPINGS[ch]) {
-              done = this.push(MAPPINGS[ch]);
-            }
-
-            if (this._mode === 'KBD' && NOTES[ch]) {
-              done = this.send(NOTES[ch]);
-            }
-
-            if (done !== true) {
-              console.log(ch, key);
-            }
+            console.log(ch, key);
           }
         }
       }
@@ -104,8 +111,23 @@ class Controller {
     process.stdin.resume();
   }
 
+  ln(value, suffix) {
+    process.stdout.write(`\r${value}\x1b[K${suffix || ''}`);
+  }
+
+  pad(value) {
+    return `00${value}`.substr(-2);
+  }
+
+  format(value, code) {
+    return `\u001b[${code}m${value}\u001b[0m`;
+  }
+
   render(value) {
-    process.stdout.write(`\r${this._mode}${value ? `\u001b[30;43m${value}\u001b[0m` : ''}\x1b[K`);
+    const label = value ? this.format(value, '30;43') : '';
+    const offset = this._mode === 'KBD' ? this._octave : this._preset;
+
+    this.ln(`${this.format(this._mode, 4)}${this.pad(offset)}${label}`);
   }
 
   toggle() {
@@ -114,6 +136,30 @@ class Controller {
     } else {
       this._mode = 'KBD';
     }
+    this.render();
+    return true;
+  }
+
+  up() {
+    this._octave = Math.min(8, this._octave + 1);
+    this.render();
+    return true;
+  }
+
+  down() {
+    this._octave = Math.max(1, this._octave - 1);
+    this.render();
+    return true;
+  }
+
+  left() {
+    this._preset = Math.max(1, this._preset - 1);
+    this.render();
+    return true;
+  }
+
+  right() {
+    this._preset = Math.min(10, this._preset + 1);
     this.render();
     return true;
   }
