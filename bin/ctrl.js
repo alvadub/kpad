@@ -79,6 +79,7 @@ const NOTES = {
 
 const ACTIONS = [
   // FIXME: see if these can be sent also as sysex... or not
+  (ch, key, ctrl) => key && key.name === 's' && (key.ctrl || key.meta) && ctrl.sync(),
   (ch, key, ctrl) => key && key.name === 'up' && ctrl.up(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'down' && ctrl.down(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
@@ -186,7 +187,7 @@ class Controller {
     this.ln(`#${this._channel} ${this.format(this._mode, 4)}${this.pad(offset)} ${levelInfo} ${label}`);
   }
 
-  toggle(shift) {
+  toggle() {
     if (this._mode === 'KBD') {
       this._mode = 'PAD';
     } else {
@@ -194,6 +195,17 @@ class Controller {
     }
     this.render();
     return true;
+  }
+
+  sync() {
+    clearTimeout(this._saving);
+    this._saving = setTimeout(() => {
+      clearTimeout(this._saving);
+
+      this.send(JSON.stringify({
+        some: 'state' + new Date().toISOString(),
+      }));
+    }, 1000);
   }
 
   tap(ch, key) {
