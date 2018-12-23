@@ -271,17 +271,39 @@ class Controller {
     }).join(''), '\x1B[1A\r');
   }
 
+  // step=0 volume
+  // step=1 effects
+  update(nth, step, value) {
+    this.out.send('cc', {
+      channel: this._channel,
+      controller: Math.floor((step + (nth / 10)) * (127 / 12)),
+      value,
+    });
+  }
+
   add() {
     if (this._active) {
-      this._buffer.push(this._active);
+      // return turn on/off solo from buffer, while backspace resets everything?
+      const offset = this._buffer.indexOf(this._active);
+
+      if (offset === -1) {
+        this._buffer.push(this._active);
+      } else {
+        this._buffer.splice(offset, 1);
+      }
       this.render();
     }
     return true;
   }
 
   drop() {
-    this._buffer.pop();
-    this.render();
+    if (this._active) {
+      // FIXME: disable all solos at once!
+      // this._buffer.forEach(x => {
+      // });
+      this._buffer = [];
+      this.render();
+    }
     return true;
   }
 
@@ -295,17 +317,17 @@ class Controller {
     return true;
   }
 
-  sync() {
-    clearTimeout(this._saving);
-    this._saving = setTimeout(() => {
-      clearTimeout(this._saving);
+  // sync() {
+  //   clearTimeout(this._saving);
+  //   this._saving = setTimeout(() => {
+  //     clearTimeout(this._saving);
 
-      this.send(JSON.stringify({
-        some: 'state' + new Date().toISOString(),
-      }));
-    }, 1000);
-    return true;
-  }
+  //     this.send(JSON.stringify({
+  //       some: 'state' + new Date().toISOString(),
+  //     }));
+  //   }, 1000);
+  //   return true;
+  // }
 
   tap(ch, key) {
     const value = key ? key.name : ch;
@@ -319,6 +341,10 @@ class Controller {
     const offset = shift ? 10 : 1;
 
     this[prop][this._active] = Math.min(127, (this[prop][this._active] || 0) + offset);
+
+    if (this._active) {
+      this.update(this._active, this._mode === 'KBD' ? 0 : 1, this[prop][this._active]);
+    }
     this.render();
     return true;
   }
@@ -328,15 +354,17 @@ class Controller {
     const offset = shift ? 10 : 1;
 
     this[prop][this._active] = Math.max(0, (this[prop][this._active] || 0) - offset);
+
+    if (this._active) {
+      this.update(this._active, this._mode === 'KBD' ? 0 : 1, this[prop][this._active]);
+    }
     this.render();
     return true;
   }
 
   left(shift) {
     if (shift) {
-      if (this._buffer.length > 1) {
-        this._buffer.push(this._buffer.shift());
-      }
+      this.send('prev');
     } else {
       this._active = Math.max(0, this._active - 1);
     }
@@ -346,9 +374,7 @@ class Controller {
 
   right(shift) {
     if (shift) {
-      if (this._buffer.length > 1) {
-        this._buffer.unshift(this._buffer.pop());
-      }
+      this.send('next');
     } else {
       this._active = Math.min(10, this._active + 1);
     }
@@ -389,7 +415,7 @@ class Controller {
 
     const hex = code.map(x => x.toString(16)).join('');
 
-    this.log(value, `f0${hex}f7`);
+    // this.log(value, `f0${hex}f7`);
     this.out.send('sysex', [240, ...code, 247]);
 
     return true;
