@@ -130,6 +130,7 @@ const ACTIONS = [
   (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'right' && ctrl.right(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'tab' && ctrl.toggle(),
+  (ch, key, ctrl) => key && key.name === 'escape' && ctrl.reset(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'KBD' && ctrl.dec(),
   (ch, key, ctrl) => ch === '>' && ctrl._mode === 'KBD' && ctrl.inc(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'PAD' && ctrl.prev(),
@@ -148,11 +149,11 @@ class Controller {
     // for sending CC values
     this._states = {};
 
-    // volume
-    this._master = 90;
-
     // effects
     this._active = 0;
+
+    // master is 0-offset
+    this._volume = [90];
     this._levels = [];
 
     const deviceName = 'kPAD I';
@@ -230,15 +231,26 @@ class Controller {
   render(value) {
     const label = value ? this.format(value, '30;43') : '';
     const offset = this._mode === 'KBD' ? this._octave : this._preset;
-    const general = !this._active ? this.format(this.pad(this._master), 4) : this.pad(this._master);
+    const general = !this._active ? this.format(this.pad(this._volume[0]), 4) : this.pad(this._volume[0]);
 
-    // FIXME: use colors for these values? e.g. red/orange/yellow/green?
     this.ln(`#${this._mode}${this.pad(offset, 2)} ${general} ${Array.from({ length: 10 }).map((_, x) => {
-      if (this._active === (x + 1)) {
-        return this.format(this.pad(this._levels[x + 1] || 0), 4);
+      const current = this[this._mode === 'KBD' ? '_volume' : '_levels'][x + 1] || 0;
+
+      let level = this.pad(current);
+
+      if (current > 85) {
+        level = this.format(level, 31);
+      } else if (current > 42) {
+        level = this.format(level, 33);
+      } else {
+        level = this.format(level, 32);
       }
 
-      return this.pad(this._levels[x + 1] || 0);
+      if (this._active === (x + 1)) {
+        return this.format(level, 4);
+      }
+
+      return level;
     }).join(' ')}`, '\n');
 
     if (this._mode !== 'PAD') {
@@ -278,34 +290,30 @@ class Controller {
         some: 'state' + new Date().toISOString(),
       }));
     }, 1000);
+    return true;
   }
 
   tap(ch, key) {
     const value = key ? key.name : ch;
 
     this.send((key && key.shift) ? value.toUpperCase() : value);
+    return true;
   }
 
   up(shift) {
-    const step = shift ? 10 : 1;
+    const prop = this._mode === 'KBD' ? '_volume' : '_levels';
+    const offset = shift ? 10 : 1;
 
-    if (this._active) {
-      this._levels[this._active] = Math.min(127, (this._levels[this._active] || 0) + step);
-    } else {
-      this._master = Math.min(127, this._master + step);
-    }
+    this[prop][this._active] = Math.min(127, (this[prop][this._active] || 0) + offset);
     this.render();
     return true;
   }
 
   down(shift) {
-    const step = shift ? 10 : 1;
+    const prop = this._mode === 'KBD' ? '_volume' : '_levels';
+    const offset = shift ? 10 : 1;
 
-    if (this._active) {
-      this._levels[this._active] = Math.max(0, (this._levels[this._active] || 0) - step);
-    } else {
-      this._master = Math.max(0, this._master - step);
-    }
+    this[prop][this._active] = Math.max(0, (this[prop][this._active] || 0) - offset);
     this.render();
     return true;
   }
@@ -354,6 +362,15 @@ class Controller {
     return true;
   }
 
+  reset() {
+    if (this._active) {
+      this[this._mode === 'KBD' ? '_volume' : '_levels'][this._active] = 0;
+    }
+
+    this.render();
+    return true;
+  }
+
   send(value) {
     const code = value.split('').map(x => x.charCodeAt());
 
@@ -387,11 +404,11 @@ class Controller {
     this.render(ch.name);
 
     const fixedNote = ch.note + (12 * (this._octave - 1));
-    const fixedAccent = this._master + (this._master / 100 * 20);
+    const fixedAccent = this._volume[0] + (this._volume[0] / 100 * 20);
 
     this.out.send('noteon', {
       note: fixedNote,
-      velocity: Math.min(127, accent ? fixedAccent : this._master),
+      velocity: Math.min(127, accent ? fixedAccent : this._volume[0]),
       channel: this._channel,
     });
 
@@ -399,7 +416,7 @@ class Controller {
       this.render();
       this.out.send('noteoff', {
         note: fixedNote,
-        velocity: this._master,
+        velocity: this._volume[0],
         channel: this._channel,
       });
     }, this._interval);
