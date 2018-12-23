@@ -29,46 +29,46 @@ const easymidi = require('easymidi');
 
 // FIXME: read/write state and load/save from/to biwtwig? :V
 const MAPPINGS = {
-  '1': { index: 1, action: null },
-  '2': { index: 2, action: null },
-  '3': { index: 3, action: null },
-  '4': { index: 4, action: null },
-  '5': { index: 5, action: null },
-  '6': { index: 6, action: null },
-  '7': { index: 7, action: null },
-  '8': { index: 8, action: null },
-  '9': { index: 9, action: null },
-  '0': { index: 10, action: null },
-  'Q': { index: 11, action: null },
-  'W': { index: 12, action: null },
-  'E': { index: 13, action: null },
-  'R': { index: 14, action: null },
-  'T': { index: 15, action: null },
-  'Y': { index: 16, action: null },
-  'U': { index: 17, action: null },
-  'I': { index: 18, action: null },
-  'O': { index: 19, action: null },
-  'P': { index: 20, action: null },
-  'A': { index: 21, action: null },
-  'S': { index: 22, action: null },
-  'D': { index: 23, action: null },
-  'F': { index: 24, action: null },
-  'G': { index: 25, action: null },
-  'H': { index: 26, action: null },
-  'J': { index: 27, action: null },
-  'K': { index: 28, action: null },
-  'L': { index: 29, action: null },
-  'Ñ': { index: 30, action: null },
-  'Z': { index: 31, action: null },
-  'X': { index: 32, action: null },
-  'C': { index: 33, action: null },
-  'V': { index: 34, action: null },
-  'B': { index: 35, action: null },
-  'N': { index: 36, action: null },
-  'M': { index: 37, action: null },
-  ',': { index: 38, action: null },
-  '.': { index: 39, action: null },
-  '-': { index: 40, action: null },
+  '1': { index: 1 },
+  '2': { index: 2 },
+  '3': { index: 3 },
+  '4': { index: 4 },
+  '5': { index: 5 },
+  '6': { index: 6 },
+  '7': { index: 7 },
+  '8': { index: 8 },
+  '9': { index: 9 },
+  '0': { index: 10 },
+  'Q': { index: 11 },
+  'W': { index: 12 },
+  'E': { index: 13 },
+  'R': { index: 14 },
+  'T': { index: 15 },
+  'Y': { index: 16 },
+  'U': { index: 17 },
+  'I': { index: 18 },
+  'O': { index: 19 },
+  'P': { index: 20 },
+  'A': { index: 21 },
+  'S': { index: 22 },
+  'D': { index: 23 },
+  'F': { index: 24 },
+  'G': { index: 25 },
+  'H': { index: 26 },
+  'J': { index: 27 },
+  'K': { index: 28 },
+  'L': { index: 29 },
+  'Ñ': { index: 30 },
+  'Z': { index: 31 },
+  'X': { index: 32 },
+  'C': { index: 33 },
+  'V': { index: 34 },
+  'B': { index: 35 },
+  'N': { index: 36 },
+  'M': { index: 37 },
+  ',': { index: 38 },
+  '.': { index: 39 },
+  '-': { index: 40 },
 };
 
 ////// OCTAVES
@@ -343,7 +343,7 @@ class Controller {
     this[prop][this._active] = Math.min(127, (this[prop][this._active] || 0) + offset);
 
     if (this._active) {
-      this.update(this._active, this._mode === 'KBD' ? 0 : 1, this[prop][this._active]);
+      this.update(this._active - 1, this._mode === 'KBD' ? 0 : 1, this[prop][this._active]);
     }
     this.render();
     return true;
@@ -356,7 +356,7 @@ class Controller {
     this[prop][this._active] = Math.max(0, (this[prop][this._active] || 0) - offset);
 
     if (this._active) {
-      this.update(this._active, this._mode === 'KBD' ? 0 : 1, this[prop][this._active]);
+      this.update(this._active - 1, this._mode === 'KBD' ? 0 : 1, this[prop][this._active]);
     }
     this.render();
     return true;
