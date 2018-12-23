@@ -129,8 +129,9 @@ const ACTIONS = [
   (ch, key, ctrl) => key && key.name === 'down' && ctrl.down(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'right' && ctrl.right(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'tab' && ctrl.toggle(),
-  (ch, key, ctrl) => key && key.name === 'escape' && ctrl.reset(),
+  (ch, key, ctrl) => key && key.name === 'tab' && ctrl.mode(),
+  (ch, key, ctrl) => key && key.name === 'return' && ctrl.add(),
+  (ch, key, ctrl) => key && key.name === 'backspace' && ctrl.drop(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'KBD' && ctrl.dec(),
   (ch, key, ctrl) => ch === '>' && ctrl._mode === 'KBD' && ctrl.inc(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'PAD' && ctrl.prev(),
@@ -141,6 +142,7 @@ class Controller {
   constructor() {
     this._interval = 100;
     this._channel = 10;
+    this._buffer = [];
 
     this._octave = 3;
     this._preset = 1;
@@ -171,8 +173,6 @@ class Controller {
     } else {
       this.out = new easymidi.Output(deviceName, true);
     }
-
-    this.out.send('sysex', [240, 173, 245, 1, 17, 2, 247]);
 
     keypress(process.stdin);
 
@@ -251,7 +251,7 @@ class Controller {
       }
 
       return level;
-    }).join(' ')}`, '\n');
+    }).join(' ')}${this._buffer.length ? ` [${this._buffer.join(', ')}]` : ''}`, '\n');
 
     if (this._mode !== 'PAD') {
       this.ln(label, '\x1B[1A\r');
@@ -271,7 +271,21 @@ class Controller {
     }).join(''), '\x1B[1A\r');
   }
 
-  toggle() {
+  add() {
+    if (this._active) {
+      this._buffer.push(this._active);
+      this.render();
+    }
+    return true;
+  }
+
+  drop() {
+    this._buffer.pop();
+    this.render();
+    return true;
+  }
+
+  mode() {
     if (this._mode === 'KBD') {
       this._mode = 'PAD';
     } else {
@@ -320,7 +334,9 @@ class Controller {
 
   left(shift) {
     if (shift) {
-      // FIXME
+      if (this._buffer.length > 1) {
+        this._buffer.push(this._buffer.shift());
+      }
     } else {
       this._active = Math.max(0, this._active - 1);
     }
@@ -330,7 +346,9 @@ class Controller {
 
   right(shift) {
     if (shift) {
-      // FIXME
+      if (this._buffer.length > 1) {
+        this._buffer.unshift(this._buffer.pop());
+      }
     } else {
       this._active = Math.min(10, this._active + 1);
     }
@@ -358,15 +376,6 @@ class Controller {
 
   next() {
     this._preset = Math.min(10, this._preset + 1);
-    this.render();
-    return true;
-  }
-
-  reset() {
-    if (this._active) {
-      this[this._mode === 'KBD' ? '_volume' : '_levels'][this._active] = 0;
-    }
-
     this.render();
     return true;
   }
