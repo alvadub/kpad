@@ -19,12 +19,57 @@ const easymidi = require('easymidi');
 //
 ////// KEYBOARD
 //
-//     S D   G H J
-// <> Z X C V B N M
+//   2 3   5 6 7   9 0
+//  Q W E R T Y U I O P
+//
+//     S D   G H J   L Ñ
+// <> Z X C V B N M , . -
 // ^
 //  `--down/up octaves
 
 // FIXME: read/write state and load/save from/to biwtwig? :V
+const MAPPINGS = {
+  '1': { index: 1, action: null },
+  '2': { index: 2, action: null },
+  '3': { index: 3, action: null },
+  '4': { index: 4, action: null },
+  '5': { index: 5, action: null },
+  '6': { index: 6, action: null },
+  '7': { index: 7, action: null },
+  '8': { index: 8, action: null },
+  '9': { index: 9, action: null },
+  '0': { index: 10, action: null },
+  'Q': { index: 11, action: null },
+  'W': { index: 12, action: null },
+  'E': { index: 13, action: null },
+  'R': { index: 14, action: null },
+  'T': { index: 15, action: null },
+  'Y': { index: 16, action: null },
+  'U': { index: 17, action: null },
+  'I': { index: 18, action: null },
+  'O': { index: 19, action: null },
+  'P': { index: 20, action: null },
+  'A': { index: 21, action: null },
+  'S': { index: 22, action: null },
+  'D': { index: 23, action: null },
+  'F': { index: 24, action: null },
+  'G': { index: 25, action: null },
+  'H': { index: 26, action: null },
+  'J': { index: 27, action: null },
+  'K': { index: 28, action: null },
+  'L': { index: 29, action: null },
+  'Ñ': { index: 30, action: null },
+  'Z': { index: 31, action: null },
+  'X': { index: 32, action: null },
+  'C': { index: 33, action: null },
+  'V': { index: 34, action: null },
+  'B': { index: 35, action: null },
+  'N': { index: 36, action: null },
+  'M': { index: 37, action: null },
+  ',': { index: 38, action: null },
+  '.': { index: 39, action: null },
+  '-': { index: 40, action: null },
+};
 
 ////// OCTAVES
 //
@@ -39,42 +84,42 @@ const easymidi = require('easymidi');
 
 const NOTES = {
   ////// LOWER NOTES
-  'Z': { note: 5, pitch: 1, name: 'C' },
-  'S': { note: 6, pitch: 1, name: 'C♯/D♭' },
-  'X': { note: 7, pitch: 1, name: 'D' },
-  'D': { note: 8, pitch: 1, name: 'D♯/E♭' },
-  'C': { note: 9, pitch: 1, name: 'E' },
-  'V': { note: 10, pitch: 1, name: 'F' },
-  'G': { note: 11, pitch: 1, name: 'F♯/G♭' },
-  'B': { note: 12, pitch: 1, name: 'G' },
-  'H': { note: 13, pitch: 1, name: 'G♯/A♭' },
-  'N': { note: 14, pitch: 1, name: 'A' },
-  'J': { note: 15, pitch: 1, name: 'A♯/B♭' },
-  'M': { note: 16, pitch: 1, name: 'B' },
-  ',': { note: 17, pitch: 1, name: 'C' },
-  'L': { note: 18, pitch: 1, name: 'C♯/D♭' },
-  '.': { note: 19, pitch: 1, name: 'D' },
-  'Ñ': { note: 20, pitch: 1, name: 'D♯/E♭' },
-  '-': { note: 21, pitch: 1, name: 'E' },
+  'Z': { note: 5, name: 'C' },
+  'S': { note: 6, name: 'C♯/D♭' },
+  'X': { note: 7, name: 'D' },
+  'D': { note: 8, name: 'D♯/E♭' },
+  'C': { note: 9, name: 'E' },
+  'V': { note: 10, name: 'F' },
+  'G': { note: 11, name: 'F♯/G♭' },
+  'B': { note: 12, name: 'G' },
+  'H': { note: 13, name: 'G♯/A♭' },
+  'N': { note: 14, name: 'A' },
+  'J': { note: 15, name: 'A♯/B♭' },
+  'M': { note: 16, name: 'B' },
+  ',': { note: 17, name: 'C' },
+  'L': { note: 18, name: 'C♯/D♭' },
+  '.': { note: 19, name: 'D' },
+  'Ñ': { note: 20, name: 'D♯/E♭' },
+  '-': { note: 21, name: 'E' },
 
   ////// HIGHER NOTES
-  'Q': { note: 17, pitch: 1, name: 'C' },
-  'W': { note: 18, pitch: 1, name: 'C♯/D♭' },
-  '2': { note: 19, pitch: 1, name: 'D' },
-  '3': { note: 20, pitch: 1, name: 'D♯/E♭' },
-  'E': { note: 21, pitch: 1, name: 'E' },
-  'R': { note: 22, pitch: 1, name: 'F' },
-  '5': { note: 23, pitch: 1, name: 'F♯/G♭' },
-  'T': { note: 24, pitch: 1, name: 'G' },
-  '6': { note: 25, pitch: 1, name: 'G♯/A♭' },
-  'Y': { note: 26, pitch: 1, name: 'A' },
-  '7': { note: 27, pitch: 1, name: 'A♯/B♭' },
-  'U': { note: 28, pitch: 1, name: 'C' },
-  'I': { note: 29, pitch: 1, name: 'C♯/D♭' },
-  '9': { note: 30, pitch: 1, name: 'D' },
-  'O': { note: 31, pitch: 1, name: 'D♯/E♭' },
-  '0': { note: 32, pitch: 1, name: 'E' },
-  'P': { note: 33, pitch: 1, name: 'F' },
+  'Q': { note: 17, name: 'C' },
+  'W': { note: 18, name: 'C♯/D♭' },
+  '2': { note: 19, name: 'D' },
+  '3': { note: 20, name: 'D♯/E♭' },
+  'E': { note: 21, name: 'E' },
+  'R': { note: 22, name: 'F' },
+  '5': { note: 23, name: 'F♯/G♭' },
+  'T': { note: 24, name: 'G' },
+  '6': { note: 25, name: 'G♯/A♭' },
+  'Y': { note: 26, name: 'A' },
+  '7': { note: 27, name: 'A♯/B♭' },
+  'U': { note: 28, name: 'C' },
+  'I': { note: 29, name: 'C♯/D♭' },
+  '9': { note: 30, name: 'D' },
+  'O': { note: 31, name: 'D♯/E♭' },
+  '0': { note: 32, name: 'E' },
+  'P': { note: 33, name: 'F' },
 };
 
 const ACTIONS = [
@@ -96,6 +141,7 @@ class Controller {
     this._interval = 100;
     this._buffer = [];
     this._timers = {};
+    this._states = {};
     this._octave = 3;
     this._preset = 1;
     this._channel = 0;
@@ -147,6 +193,10 @@ class Controller {
 
           if (this._mode === 'KBD' && NOTES[char]) {
             done = this.sendMidi(NOTES[char], key && key.shift);
+          }
+
+          if (this._mode === 'PAD' && MAPPINGS[char]) {
+            done = this.sendCC(MAPPINGS[char]);
           }
 
           if (done !== true) {
@@ -293,6 +343,18 @@ class Controller {
 
     this.log(value, `f0${hex}f7`);
     this.out.send('sysex', [240, ...code, 247]);
+
+    return true;
+  }
+
+  sendCC(ch) {
+    this._states[ch.index] = !this._states[ch.index];
+
+    this.out.send('cc', {
+      value: this._states[ch.index] ? 127 : 0,
+      controller: ch.index,
+      channel: this._channel,
+    });
 
     return true;
   }
