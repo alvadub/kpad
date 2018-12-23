@@ -234,7 +234,18 @@ class Controller {
     // FIXME: use colors for these values? e.g. red/orange/yellow/green?
     const levelInfo = this.format(`${this._master}:${this._active}/${current}`, 2);
 
-    this.ln(`#${this._channel} ${this.format(this._mode, 4)}${this.pad(offset)} ${levelInfo} ${label}`);
+    this.ln(`#${this._channel} ${this.format(this._mode, 4)}${this.pad(offset)} ${levelInfo} ${label}`, '\n');
+    this.ln('1234567890 QWERTYUIOP ASDFGHJKLÑ ZXCVBNM,.-'.split('').map(char => {
+      if (char !== ' ') {
+        if (MAPPINGS[char] && this._states[MAPPINGS[char].index]) {
+          return this.format(char, 4);
+        }
+
+        return this.format(char, 2);
+      }
+
+      return char;
+    }).join(''), '\x1B[1A\r');
   }
 
   toggle() {
@@ -356,6 +367,7 @@ class Controller {
       channel: this._channel,
     });
 
+    this.render();
     return true;
   }
 
