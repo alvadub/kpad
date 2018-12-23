@@ -129,7 +129,7 @@ const ACTIONS = [
   (ch, key, ctrl) => key && key.name === 'down' && ctrl.down(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'right' && ctrl.right(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'escape' && ctrl.toggle(),
+  (ch, key, ctrl) => key && key.name === 'tab' && ctrl.toggle(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'KBD' && ctrl.dec(),
   (ch, key, ctrl) => ch === '>' && ctrl._mode === 'KBD' && ctrl.inc(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'PAD' && ctrl.prev(),
@@ -139,13 +139,14 @@ const ACTIONS = [
 class Controller {
   constructor() {
     this._interval = 100;
-    this._buffer = [];
-    this._timers = {};
-    this._states = {};
+    this._channel = 10;
+
     this._octave = 3;
     this._preset = 1;
-    this._channel = 0;
     this._mode = 'KBD';
+
+    // for sending CC values
+    this._states = {};
 
     // volume
     this._master = 90;
@@ -218,8 +219,8 @@ class Controller {
     process.stdout.write(`\r${value}\x1b[K${suffix || ''}`);
   }
 
-  pad(value) {
-    return `00${value}`.substr(-2);
+  pad(value, offset) {
+    return `00${value}`.substr(offset ? offset * -1 : -3);
   }
 
   format(value, code) {
@@ -229,12 +230,22 @@ class Controller {
   render(value) {
     const label = value ? this.format(value, '30;43') : '';
     const offset = this._mode === 'KBD' ? this._octave : this._preset;
-    const current = this._levels[this._active] || 0;
+    const general = !this._active ? this.format(this.pad(this._master), 4) : this.pad(this._master);
 
     // FIXME: use colors for these values? e.g. red/orange/yellow/green?
-    const levelInfo = this.format(`${this._master}:${this._active}/${current}`, 2);
+    this.ln(`#${this._mode}${this.pad(offset, 2)} ${general} ${Array.from({ length: 10 }).map((_, x) => {
+      if (this._active === (x + 1)) {
+        return this.format(this.pad(this._levels[x + 1] || 0), 4);
+      }
 
-    this.ln(`#${this._channel} ${this.format(this._mode, 4)}${this.pad(offset)} ${levelInfo} ${label}`, '\n');
+      return this.pad(this._levels[x + 1] || 0);
+    }).join(' ')}`, '\n');
+
+    if (this._mode !== 'PAD') {
+      this.ln(label, '\x1B[1A\r');
+      return;
+    }
+
     this.ln('1234567890 QWERTYUIOP ASDFGHJKLÑ ZXCVBNM,.-'.split('').map(char => {
       if (char !== ' ') {
         if (MAPPINGS[char] && this._states[MAPPINGS[char].index]) {
@@ -301,7 +312,7 @@ class Controller {
 
   left(shift) {
     if (shift) {
-      this._channel = Math.max(0, this._channel - 1);
+      // FIXME
     } else {
       this._active = Math.max(0, this._active - 1);
     }
@@ -311,7 +322,7 @@ class Controller {
 
   right(shift) {
     if (shift) {
-      this._channel = Math.min(10, this._channel + 1);
+      // FIXME
     } else {
       this._active = Math.min(10, this._active + 1);
     }
@@ -384,11 +395,8 @@ class Controller {
       channel: this._channel,
     });
 
-    clearTimeout(this._timers[ch.name]);
-    this._timers[ch.name] = setTimeout(() => {
-      clearTimeout(this._timers[ch.name]);
+    setTimeout(() => {
       this.render();
-
       this.out.send('noteoff', {
         note: fixedNote,
         velocity: this._master,
