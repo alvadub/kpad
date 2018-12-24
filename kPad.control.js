@@ -20,6 +20,21 @@ function log(msg) {
   println(msg);
 }
 
+function sendState(source, offset) {
+  source.addValueObserver(function (value) {
+    const level = Math.floor(value * 127);
+
+    sendMidi(186, offset, level);
+  });
+}
+
+function isCC(data1) { return data1 >= 80; }
+function isMute(data1) { return data1 < 16; }
+function isSolo(data1) { return data1 < 32 && data1 >= 16; }
+function isSend1(data1) { return data1 < 48 && data1 >= 32; }
+function isSend2(data1) { return data1 < 64 && data1 >= 48; }
+function isVolume(data1) { return data1 < 80 && data1 >= 64; }
+
 function init() {
   host.getMidiInPort(0).setMidiCallback(onMidi);
   host.getMidiInPort(0).setSysexCallback(onSysex);
@@ -28,29 +43,34 @@ function init() {
   kPad.transport = host.createTransport();
   kPad.trackBank = host.createTrackBank(16, 2, 8);
   kPad.cursorTrack = host.createCursorTrack(2, 16);
+  kPad.userControls = host.createUserControls(40);
 
-  for (let i = 0; i < 10; i += 1) {
-    // FIXME: simplify and abstract...
-    kPad.trackBank.getChannel(i).getMute().addValueObserver(function (value) { sendMidi(186, i, Math.floor(value * 127)); });
-    kPad.trackBank.getChannel(i).getSolo().addValueObserver(function (value) { sendMidi(186, i + 10, Math.floor(value * 127)); });
-    kPad.trackBank.getChannel(i).getSend(0).value().addValueObserver(function (value) { sendMidi(186, i + 20, Math.floor(value * 127)); });
-    kPad.trackBank.getChannel(i).getVolume().value().addValueObserver(function (value) { sendMidi(186, i + 30, Math.floor(value * 127)); });
+  // 0-127 = 16 tracks
+  // 80 mute/solo/send/volume
+  // 40 user-cc
+  // 7  transport/etc
+
+  for (let i = 0; i < 16; i += 1) {
+    sendState(kPad.trackBank.getChannel(i).getMute(), i);
+    sendState(kPad.trackBank.getChannel(i).getSolo(), i + 16);
+    sendState(kPad.trackBank.getChannel(i).getSend(0).value(), i + 32);
+    sendState(kPad.trackBank.getChannel(i).getSend(1).value(), i + 48);
+    sendState(kPad.trackBank.getChannel(i).getVolume().value(), i + 64);
+  }
+
+  for (let j = 0; j < 40; j += 1) {
+    sendState(kPad.userControls.getControl(j).value(), j + 80);
   }
 }
 
 function onMidi(status, data1, data2) {
   if (status === 186) {
-    if (data1 <= 10) {
-      kPad.trackBank.getChannel(data1 - 1).getMute().set(!(data2 > 0));
-    } else if (data1 > 10 && data1 <= 20) {
-      kPad.trackBank.getChannel((data1 - 1) - 10).getSolo().set(!(data2 > 0));
-    } else if (data1 > 20 && data1 <= 30) {
-      kPad.trackBank.getChannel((data1 - 1) - 20).getSend(0).set(data2, 128);
-    } else if (data1 > 30 && data1 <= 40) {
-      kPad.trackBank.getChannel((data1 - 1) - 30).getVolume().set(data2, 128);
-    } else {
-      println('CC: ' + data1 + ', ' + data2);
-    }
+    if (isMute(data1)) { kPad.trackBank.getChannel(data1).getMute().set(data2 !== 127) }
+    if (isSolo(data1)) { kPad.trackBank.getChannel(data1 - 16).getSolo().set(data2 !== 127); }
+    if (isSend1(data1)) { kPad.trackBank.getChannel(data1 - 32).getSend(0).set(data2, 128); }
+    if (isSend2(data1)) { kPad.trackBank.getChannel(data1 - 48).getSend(1).set(data2, 128); }
+    if (isVolume(data1)) { kPad.trackBank.getChannel(data1 - 64).getVolume().set(data2, 128); }
+    if (isCC(data1)) { kPad.userControls.getControl(j).set(data2); }
   } else {
     println(status + ',' + data1 + ',' + data2);
   }

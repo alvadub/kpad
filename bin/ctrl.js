@@ -9,7 +9,8 @@ const easymidi = require('easymidi');
 //
 //    1 2 3 4 5 6 7 8 9 0 (1-10)
 //    Q W E R T Y U I O P (11-20)
-//    A S D F G H J K L Ñ (21-20)
+//    A S D F G H J K L Ñ (21-30)
+//    Z X C V B N M , . - (31-40)
 // ^
 //  `--type sequence + ENTER to on/off
 //
@@ -26,6 +27,15 @@ const easymidi = require('easymidi');
 // <> Z X C V B N M , . -
 // ^
 //  `--down/up octaves
+
+const TYPES = {
+  Mute: data1 => data1 < 16,
+  Solo: data1 => data1 < 32 && data1 >= 16,
+  Send1: data1 => data1 < 48 && data1 >= 32,
+  Send2: data1 => data1 < 64 && data1 >= 48,
+  Volume: data1 => data1 < 80 && data1 >= 64,
+  CC: data1 => data1 >= 80,
+};
 
 // FIXME: read/write state and load/save from/to biwtwig? :V
 const MAPPINGS = {
@@ -140,12 +150,13 @@ const ACTIONS = [
 
 class Controller {
   constructor() {
-    this._interval = 100;
     this._channel = 10;
     this._buffer = [];
 
     this._octave = 3;
-    this._preset = 1;
+    this._preset = 1; // for multiple CCs?
+    // FIXME: KBD is for volume, PAD for levels-per-preset?
+    // FIXME: left/right should select from tracks instead of prev/next
     this._mode = 'PAD';
 
     // for sending CC values
@@ -178,16 +189,15 @@ class Controller {
 
     this.in.on('cc', msg => {
       const { controller, value } = msg;
+      const [type, channel] = this.getInfo(controller);
 
-      if (controller < 10) {
-        this._states[controller + 1] = value === 0;
-        this.render();
-      }
+      this.render(`${type} #${channel} ${value}`);
 
-      if (controller >= 20 && controller < 30) {
-        this._levels[(controller - 20) + 1] = value;
+      clearTimeout(this._render);
+      this._render = setTimeout(() => {
+        clearTimeout(this._render);
         this.render();
-      }
+      }, 420);
     });
 
     keypress(process.stdin);
@@ -226,6 +236,16 @@ class Controller {
 
     process.stdin.setRawMode(true);
     process.stdin.resume();
+  }
+
+  getInfo(value) {
+    const types = Object.keys(TYPES);
+
+    for (let i = 0; i < types.length; i += 1) {
+      if (TYPES[types[i]](value)) {
+        return [types[i], value - (i * 16)];
+      }
+    }
   }
 
   log(...msg) {
@@ -470,7 +490,7 @@ class Controller {
         velocity: this._master,
         channel: this._channel,
       });
-    }, this._interval);
+    }, 120);
 
     return true;
   }
