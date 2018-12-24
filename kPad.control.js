@@ -30,17 +30,11 @@ function init() {
   kPad.cursorTrack = host.createCursorTrack(2, 16);
 
   for (let i = 0; i < 10; i += 1) {
-    kPad.trackBank.getChannel(i).getMute().addValueObserver(function (value) {
-      sendMidi(186, i, value);
-    });
-
-    kPad.trackBank.getChannel(i).getSolo().addValueObserver(function (value) {
-      sendMidi(186, i + 10, value);
-    });
-
-    // kPad.trackBank.getChannel(i).getSend(0).addValueObserver(function (value) {
-    //   sendMidi(186, i + 20, value);
-    // });
+    // FIXME: simplify and abstract...
+    kPad.trackBank.getChannel(i).getMute().addValueObserver(function (value) { sendMidi(186, i, Math.floor(value * 127)); });
+    kPad.trackBank.getChannel(i).getSolo().addValueObserver(function (value) { sendMidi(186, i + 10, Math.floor(value * 127)); });
+    kPad.trackBank.getChannel(i).getSend(0).value().addValueObserver(function (value) { sendMidi(186, i + 20, Math.floor(value * 127)); });
+    kPad.trackBank.getChannel(i).getVolume().value().addValueObserver(function (value) { sendMidi(186, i + 30, Math.floor(value * 127)); });
   }
 }
 
@@ -48,6 +42,12 @@ function onMidi(status, data1, data2) {
   if (status === 186) {
     if (data1 <= 10) {
       kPad.trackBank.getChannel(data1 - 1).getMute().set(!(data2 > 0));
+    } else if (data1 > 10 && data1 <= 20) {
+      kPad.trackBank.getChannel((data1 - 1) - 10).getSolo().set(!(data2 > 0));
+    } else if (data1 > 20 && data1 <= 30) {
+      kPad.trackBank.getChannel((data1 - 1) - 20).getSend(0).set(data2, 128);
+    } else if (data1 > 30 && data1 <= 40) {
+      kPad.trackBank.getChannel((data1 - 1) - 30).getVolume().set(data2, 128);
     } else {
       println('CC: ' + data1 + ', ' + data2);
     }

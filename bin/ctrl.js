@@ -184,8 +184,8 @@ class Controller {
         this.render();
       }
 
-      if (controller >= 10 && controller < 20) {
-        this._levels[(controller - 10) + 1] = value;
+      if (controller >= 20 && controller < 30) {
+        this._levels[(controller - 20) + 1] = value;
         this.render();
       }
     });
@@ -288,6 +288,7 @@ class Controller {
   // step=0 mute on/off
   // step=1 solo on/off
   // step=2 send1 level
+  // step=3 volume level
   update(nth, step, value) {
     this.out.send('cc', {
       channel: this._channel,
