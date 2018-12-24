@@ -1,8 +1,7 @@
 loadAPI(2);
 host.setShouldFailOnDeprecatedUse(true);
-
 host.defineController('Generic', 'kPad', '1.0', 'F3CFFC62-4B9E-4703-91EC-6741E3419572');
-host.defineMidiPorts(1, 0);
+host.defineMidiPorts(1, 1);
 
 const kPad = {
   // state: {},
@@ -24,19 +23,31 @@ function log(msg) {
 function init() {
   host.getMidiInPort(0).setMidiCallback(onMidi);
   host.getMidiInPort(0).setSysexCallback(onSysex);
-
-  generic = host.getMidiInPort(0).createNoteInput('', '??????');
-  generic.setShouldConsumeEvents(false);
+  host.getMidiInPort(0).createNoteInput('', '??????').setShouldConsumeEvents(false);
 
   kPad.transport = host.createTransport();
   kPad.trackBank = host.createTrackBank(16, 2, 8);
   kPad.cursorTrack = host.createCursorTrack(2, 16);
+
+  for (let i = 0; i < 10; i += 1) {
+    kPad.trackBank.getChannel(i).getMute().addValueObserver(function (value) {
+      sendMidi(186, i, value);
+    });
+
+    kPad.trackBank.getChannel(i).getSolo().addValueObserver(function (value) {
+      sendMidi(186, i + 10, value);
+    });
+
+    // kPad.trackBank.getChannel(i).getSend(0).addValueObserver(function (value) {
+    //   sendMidi(186, i + 20, value);
+    // });
+  }
 }
 
 function onMidi(status, data1, data2) {
   if (status === 186) {
-    if (data1 < 11) {
-      kPad.trackBank.getChannel(data1).getVolume().set(data2, 128);
+    if (data1 <= 10) {
+      kPad.trackBank.getChannel(data1 - 1).getMute().set(!(data2 > 0));
     } else {
       println('CC: ' + data1 + ', ' + data2);
     }

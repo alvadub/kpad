@@ -146,17 +146,17 @@ class Controller {
 
     this._octave = 3;
     this._preset = 1;
-    this._mode = 'KBD';
+    this._mode = 'PAD';
 
     // for sending CC values
     this._states = {};
 
     // effects
     this._active = 0;
-
-    // master is 0-offset
-    this._volume = [90];
     this._levels = [];
+
+    // volume
+    this._master = 90;
 
     const deviceName = 'kPAD I';
 
@@ -166,13 +166,29 @@ class Controller {
       outputs.some(name => {
         if (name.toLowerCase().indexOf(deviceName.toLowerCase()) > -1) {
           this.out = new easymidi.Output(name);
+          this.in = new easymidi.Input(name);
           return true;
         }
         return false;
       });
     } else {
       this.out = new easymidi.Output(deviceName, true);
+      this.in = new easymidi.Input(deviceName, true);
     }
+
+    this.in.on('cc', msg => {
+      const { controller, value } = msg;
+
+      if (controller < 10) {
+        this._states[controller + 1] = value === 0;
+        this.render();
+      }
+
+      if (controller >= 10 && controller < 20) {
+        this._levels[(controller - 10) + 1] = value;
+        this.render();
+      }
+    });
 
     keypress(process.stdin);
 
@@ -231,10 +247,10 @@ class Controller {
   render(value) {
     const label = value ? this.format(value, '30;43') : '';
     const offset = this._mode === 'KBD' ? this._octave : this._preset;
-    const general = !this._active ? this.format(this.pad(this._volume[0]), 4) : this.pad(this._volume[0]);
+    const general = !this._active ? this.format(this.pad(this._master), 4) : this.pad(this._master);
 
     this.ln(`#${this._mode}${this.pad(offset, 2)} ${general} ${Array.from({ length: 10 }).map((_, x) => {
-      const current = this[this._mode === 'KBD' ? '_volume' : '_levels'][x + 1] || 0;
+      const current = this._levels[x + 1] || 0;
 
       let level = this.pad(current);
 
@@ -260,19 +276,18 @@ class Controller {
 
     this.ln('1234567890 QWERTYUIOP ASDFGHJKLÑ ZXCVBNM,.-'.split('').map(char => {
       if (char !== ' ') {
-        if (MAPPINGS[char] && this._states[MAPPINGS[char].index]) {
-          return this.format(char, 4);
+        if (MAPPINGS[char] && !this._states[MAPPINGS[char].index]) {
+          return this.format(char, 2);
         }
-
-        return this.format(char, 2);
       }
 
       return char;
     }).join(''), '\x1B[1A\r');
   }
 
-  // step=0 volume
-  // step=1 effects
+  // step=0 mute on/off
+  // step=1 solo on/off
+  // step=2 send1 level
   update(nth, step, value) {
     this.out.send('cc', {
       channel: this._channel,
@@ -337,26 +352,26 @@ class Controller {
   }
 
   up(shift) {
-    const prop = this._mode === 'KBD' ? '_volume' : '_levels';
     const offset = shift ? 10 : 1;
 
-    this[prop][this._active] = Math.min(127, (this[prop][this._active] || 0) + offset);
-
     if (this._active) {
-      this.update(this._active - 1, this._mode === 'KBD' ? 0 : 1, this[prop][this._active]);
+      this._levels[this._active] = Math.min(127, (this._levels[this._active] || 0) + offset);
+      this.update(this._active - 1, 2, this._levels[this._active]);
+    } else {
+      this._master = Math.min(127, (this._master || 0) + offset);
     }
     this.render();
     return true;
   }
 
   down(shift) {
-    const prop = this._mode === 'KBD' ? '_volume' : '_levels';
     const offset = shift ? 10 : 1;
 
-    this[prop][this._active] = Math.max(0, (this[prop][this._active] || 0) - offset);
-
     if (this._active) {
-      this.update(this._active - 1, this._mode === 'KBD' ? 0 : 1, this[prop][this._active]);
+      this._levels[this._active] = Math.max(0, (this._levels[this._active] || 0) - offset);
+      this.update(this._active - 1, 2, this._levels[this._active]);
+    } else {
+      this._master = Math.max(0, (this._master || 0) - offset);
     }
     this.render();
     return true;
@@ -439,11 +454,11 @@ class Controller {
     this.render(ch.name);
 
     const fixedNote = ch.note + (12 * (this._octave - 1));
-    const fixedAccent = this._volume[0] + (this._volume[0] / 100 * 20);
+    const fixedAccent = this._master + (this._master / 100 * 20);
 
     this.out.send('noteon', {
       note: fixedNote,
-      velocity: Math.min(127, accent ? fixedAccent : this._volume[0]),
+      velocity: Math.min(127, accent ? fixedAccent : this._master),
       channel: this._channel,
     });
 
@@ -451,7 +466,7 @@ class Controller {
       this.render();
       this.out.send('noteoff', {
         note: fixedNote,
-        velocity: this._volume[0],
+        velocity: this._master,
         channel: this._channel,
       });
     }, this._interval);
