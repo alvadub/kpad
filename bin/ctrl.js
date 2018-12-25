@@ -262,12 +262,15 @@ class Controller {
     process.stdin.resume();
   }
 
-  log(...msg) {
-    this.ln(msg.join(' '), '\n');
-  }
-
   ln(value, suffix) {
     process.stdout.write(`\r${value}\x1b[K${suffix || ''}`);
+  }
+
+  log(msg) {
+    this._message = msg;
+    this.update(500, () => {
+      this._message = '';
+    });
   }
 
   spad(type, value, offset) {
@@ -376,12 +379,13 @@ class Controller {
     return true;
   }
 
-  update() {
+  update(ms, clear) {
     clearTimeout(this._render);
     this._render = setTimeout(() => {
       clearTimeout(this._render);
+      if (clear) clear();
       this.render();
-    }, 50);
+    }, ms || 50);
   }
 
   clear() {
@@ -577,6 +581,17 @@ class Controller {
       });
       this.render();
     }, 120);
+    return true;
+  }
+
+  sendSysex(value) {
+    const code = value.split('').map(x => x.charCodeAt());
+
+    if (code.length === 1) {
+      code.unshift('\0');
+    }
+
+    this.out.send('sysex', [240, ...code, 247]);
     return true;
   }
 }
