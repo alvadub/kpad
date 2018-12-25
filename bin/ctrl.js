@@ -151,7 +151,7 @@ const ACTIONS = [
   (ch, key, ctrl) => key && key.name === 'down' && ctrl.down(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'right' && ctrl.right(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'tab' && ctrl.mode(),
+  (ch, key, ctrl) => key && key.name === 'tab' && ctrl.mode(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'return' && ctrl.add(),
   (ch, key, ctrl) => key && key.name === 'backspace' && ctrl.drop(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'KBD' && ctrl.dec(),
@@ -163,12 +163,14 @@ const ACTIONS = [
 class Controller {
   constructor() {
     this._channel = 10;
+    this._offset = 0;
     this._buffer = [];
 
     this._octave = 3;
     this._preset = 1; // for multiple CCs?
     // FIXME: KBD is for volume, PAD for levels-per-preset?
     // FIXME: left/right should select from tracks instead of prev/next
+    // this._modes = TYPES.map(x => x[0]);
     this._mode = 'PAD';
 
     // for sending CC values
@@ -230,7 +232,8 @@ class Controller {
 
     process.stdin.on('keypress', (ch, key) => {
       if (key && key.ctrl && key.name === 'c') {
-        this.ln(this.format('OFF', 2), '\n');
+        this.clear();
+
         process.stdin.pause();
         process.exit();
       } else {
@@ -281,56 +284,70 @@ class Controller {
   }
 
   render(value) {
-    const label = value ? this.format(value, '30;43') : '';
-    const offset = this._mode === 'KBD' ? this._octave : this._preset;
-    const general = !this._active ? this.format(this.pad(this._master), 4) : this.pad(this._master);
+    const suffix = this._offset ? `\x1B[${this._offset}C` : '';
 
-    this.ln(`#${this._mode}${this.pad(offset, 2)} ${general} ${Array.from({ length: 10 }).map((_, x) => {
-      const current = this._levels[x + 1] || 0;
+    this.ln('ABCDEF', '\n');
+    this.ln('N', '\n');
+    this.ln('N', '\n');
+    this.ln('N', '\n');
+    this.ln('N', '\n');
+    this.ln('N', `\x1B[5A\r${suffix}`);
 
-      let level = this.pad(current);
+    // const label = value ? this.format(value, '30;43') : '';
+    // const offset = this._mode === 'KBD' ? this._octave : this._preset;
+    // const general = !this._active ? this.format(this.pad(this._master), 4) : this.pad(this._master);
 
-      if (current > 85) {
-        level = this.format(level, 31);
-      } else if (current > 42) {
-        level = this.format(level, 33);
-      } else {
-        level = this.format(level, 32);
-      }
+    // this.ln(`#${this._mode}${this.pad(offset, 2)} ${general} ${Array.from({ length: 10 }).map((_, x) => {
+    //   const current = this._levels[x + 1] || 0;
 
-      if (this._active === (x + 1)) {
-        return this.format(level, 4);
-      }
+    //   let level = this.pad(current);
 
-      return level;
-    }).join(' ')}${this._buffer.length ? ` [${this._buffer.join(', ')}]` : ''}`, '\n');
+    //   if (current > 85) {
+    //     level = this.format(level, 31);
+    //   } else if (current > 42) {
+    //     level = this.format(level, 33);
+    //   } else {
+    //     level = this.format(level, 32);
+    //   }
 
-    if (this._mode !== 'PAD') {
-      this.ln(label, '\x1B[1A\r');
-      return;
-    }
+    //   if (this._active === (x + 1)) {
+    //     return this.format(level, 4);
+    //   }
 
-    this.ln('1234567890 QWERTYUIOP ASDFGHJKLÑ ZXCVBNM,.-'.split('').map(char => {
-      if (char !== ' ') {
-        if (MAPPINGS[char] && !this._states[MAPPINGS[char].index]) {
-          return this.format(char, 2);
-        }
-      }
+    //   return level;
+    // }).join(' ')}${this._buffer.length ? ` [${this._buffer.join(', ')}]` : ''}`, '\n');
 
-      return char;
-    }).join(''), '\x1B[1A\r');
+    // if (this._mode !== 'PAD') {
+    //   this.ln(label, '\x1B[1A\r');
+    //   return;
+    // }
+
+    // this.ln('1234567890 QWERTYUIOP ASDFGHJKLÑ ZXCVBNM,.-'.split('').map(char => {
+    //   if (char !== ' ') {
+    //     if (MAPPINGS[char] && !this._states[MAPPINGS[char].index]) {
+    //       return this.format(char, 2);
+    //     }
+    //   }
+
+    //   return char;
+    // }).join(''), '\x1B[1A\r');
   }
 
   // step=0 mute on/off
   // step=1 solo on/off
   // step=2 send1 level
   // step=3 volume level
-  update(nth, step, value) {
-    this.out.send('cc', {
-      channel: this._channel,
-      controller: Math.floor((step + (nth / 10)) * (127 / 12)),
-      value,
-    });
+  // update(nth, step, value) {
+  //   this.out.send('cc', {
+  //     channel: this._channel,
+  //     controller: Math.floor((step + (nth / 10)) * (127 / 12)),
+  //     value,
+  //   });
+  // }
+
+  clear() {
+    for (let i = 0; i < 5; i += 1) this.ln('', '\n');
+    this.ln('', '\x1B[5A\r');
   }
 
   set(name, index, value) {
@@ -348,39 +365,39 @@ class Controller {
   }
 
   add() {
-    if (this._active) {
-      // return turn on/off solo from buffer, while backspace resets everything?
-      const offset = this._buffer.indexOf(this._active);
+    // if (this._active) {
+    //   // return turn on/off solo from buffer, while backspace resets everything?
+    //   const offset = this._buffer.indexOf(this._active);
 
-      if (offset === -1) {
-        this._buffer.push(this._active);
-      } else {
-        this._buffer.splice(offset, 1);
-      }
-      this.render();
-    }
-    return true;
+    //   if (offset === -1) {
+    //     this._buffer.push(this._active);
+    //   } else {
+    //     this._buffer.splice(offset, 1);
+    //   }
+    //   this.render();
+    // }
+    // return true;
   }
 
   drop() {
-    if (this._active) {
-      // FIXME: disable all solos at once!
-      // this._buffer.forEach(x => {
-      // });
-      this._buffer = [];
-      this.render();
-    }
-    return true;
+    // if (this._active) {
+    //   // FIXME: disable all solos at once!
+    //   // this._buffer.forEach(x => {
+    //   // });
+    //   this._buffer = [];
+    //   this.render();
+    // }
+    // return true;
   }
 
   mode() {
-    if (this._mode === 'KBD') {
-      this._mode = 'PAD';
-    } else {
-      this._mode = 'KBD';
-    }
-    this.render();
-    return true;
+    // if (this._mode === 'KBD') {
+    //   this._mode = 'PAD';
+    // } else {
+    //   this._mode = 'KBD';
+    // }
+    // this.render();
+    // return true;
   }
 
   // sync() {
@@ -396,133 +413,135 @@ class Controller {
   // }
 
   tap(ch, key) {
-    const value = key ? key.name : ch;
+    // const value = key ? key.name : ch;
 
-    this.send((key && key.shift) ? value.toUpperCase() : value);
-    return true;
+    // this.send((key && key.shift) ? value.toUpperCase() : value);
+    // return true;
   }
 
   up(shift) {
-    const offset = shift ? 10 : 1;
+    // const offset = shift ? 10 : 1;
 
-    if (this._active) {
-      this._levels[this._active] = Math.min(127, (this._levels[this._active] || 0) + offset);
-      this.update(this._active - 1, 2, this._levels[this._active]);
-    } else {
-      this._master = Math.min(127, (this._master || 0) + offset);
-    }
-    this.render();
-    return true;
+    // if (this._active) {
+    //   this._levels[this._active] = Math.min(127, (this._levels[this._active] || 0) + offset);
+    //   this.update(this._active - 1, 2, this._levels[this._active]);
+    // } else {
+    //   this._master = Math.min(127, (this._master || 0) + offset);
+    // }
+    // this.render();
+    // return true;
   }
 
   down(shift) {
-    const offset = shift ? 10 : 1;
+    // const offset = shift ? 10 : 1;
 
-    if (this._active) {
-      this._levels[this._active] = Math.max(0, (this._levels[this._active] || 0) - offset);
-      this.update(this._active - 1, 2, this._levels[this._active]);
-    } else {
-      this._master = Math.max(0, (this._master || 0) - offset);
-    }
-    this.render();
-    return true;
+    // if (this._active) {
+    //   this._levels[this._active] = Math.max(0, (this._levels[this._active] || 0) - offset);
+    //   this.update(this._active - 1, 2, this._levels[this._active]);
+    // } else {
+    //   this._master = Math.max(0, (this._master || 0) - offset);
+    // }
+    // this.render();
+    // return true;
   }
 
   left(shift) {
-    if (shift) {
-      this.send('prev');
-    } else {
-      this._active = Math.max(0, this._active - 1);
-    }
+    // if (shift) {
+    //   this.send('prev');
+    // } else {
+    //   this._active = Math.max(0, this._active - 1);
+    // }
+    this._offset = Math.max(0, this._offset - 1);
     this.render();
     return true;
   }
 
   right(shift) {
-    if (shift) {
-      this.send('next');
-    } else {
-      this._active = Math.min(10, this._active + 1);
-    }
+    // if (shift) {
+    //   this.send('next');
+    // } else {
+    //   this._active = Math.min(10, this._active + 1);
+    // }
+    this._offset = Math.min(16, this._offset + 1);
     this.render();
     return true;
   }
 
   inc() {
-    this._octave = Math.min(8, this._octave + 1);
-    this.render();
-    return true;
+    // this._octave = Math.min(8, this._octave + 1);
+    // this.render();
+    // return true;
   }
 
   dec() {
-    this._octave = Math.max(1, this._octave - 1);
-    this.render();
-    return true;
+    // this._octave = Math.max(1, this._octave - 1);
+    // this.render();
+    // return true;
   }
 
   prev() {
-    this._preset = Math.max(1, this._preset - 1);
-    this.render();
-    return true;
+    // this._preset = Math.max(1, this._preset - 1);
+    // this.render();
+    // return true;
   }
 
   next() {
-    this._preset = Math.min(10, this._preset + 1);
-    this.render();
-    return true;
+    // this._preset = Math.min(10, this._preset + 1);
+    // this.render();
+    // return true;
   }
 
   send(value) {
-    const code = value.split('').map(x => x.charCodeAt());
+    // const code = value.split('').map(x => x.charCodeAt());
 
-    if (code.length === 1) {
-      code.unshift('\0');
-    }
+    // if (code.length === 1) {
+    //   code.unshift('\0');
+    // }
 
-    const hex = code.map(x => x.toString(16)).join('');
+    // const hex = code.map(x => x.toString(16)).join('');
 
-    // this.log(value, `f0${hex}f7`);
-    this.out.send('sysex', [240, ...code, 247]);
+    // // this.log(value, `f0${hex}f7`);
+    // this.out.send('sysex', [240, ...code, 247]);
 
-    return true;
+    // return true;
   }
 
   sendCC(ch) {
-    this._states[ch.index] = !this._states[ch.index];
+    // this._states[ch.index] = !this._states[ch.index];
 
-    this.out.send('cc', {
-      value: this._states[ch.index] ? 127 : 0,
-      controller: ch.index,
-      channel: this._channel,
-    });
+    // this.out.send('cc', {
+    //   value: this._states[ch.index] ? 127 : 0,
+    //   controller: ch.index,
+    //   channel: this._channel,
+    // });
 
-    this.render();
-    return true;
+    // this.render();
+    // return true;
   }
 
   // FIXME: try supporting keydown/keyup with https://github.com/wilix-team/iohook for real pressure?
   sendMidi(ch, accent) {
-    this.render(ch.name);
+    // this.render(ch.name);
 
-    const fixedNote = ch.note + (12 * (this._octave - 1));
-    const fixedAccent = this._master + (this._master / 100 * 20);
+    // const fixedNote = ch.note + (12 * (this._octave - 1));
+    // const fixedAccent = this._master + (this._master / 100 * 20);
 
-    this.out.send('noteon', {
-      note: fixedNote,
-      velocity: Math.min(127, accent ? fixedAccent : this._master),
-      channel: this._channel,
-    });
+    // this.out.send('noteon', {
+    //   note: fixedNote,
+    //   velocity: Math.min(127, accent ? fixedAccent : this._master),
+    //   channel: this._channel,
+    // });
 
-    setTimeout(() => {
-      this.render();
-      this.out.send('noteoff', {
-        note: fixedNote,
-        velocity: this._master,
-        channel: this._channel,
-      });
-    }, 120);
+    // setTimeout(() => {
+    //   this.render();
+    //   this.out.send('noteoff', {
+    //     note: fixedNote,
+    //     velocity: this._master,
+    //     channel: this._channel,
+    //   });
+    // }, 120);
 
-    return true;
+    // return true;
   }
 }
 
