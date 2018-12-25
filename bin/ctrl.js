@@ -160,6 +160,8 @@ const ACTIONS = [
   (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'right' && ctrl.right(key && key.shift),
   (ch, key, ctrl) => key && key.name === 'tab' && ctrl.mode(key && key.shift),
+  (ch, key, ctrl) => key && key.name === 'space' && ctrl.play(),
+  (ch, key, ctrl) => key && key.name === 'escape' && ctrl.stop(),
   (ch, key, ctrl) => key && key.name === 'return' && ctrl.add(),
   (ch, key, ctrl) => key && key.name === 'backspace' && ctrl.drop(),
   (ch, key, ctrl) => ch === '<' && ctrl._mode === 'K' && ctrl.dec(),
@@ -173,21 +175,13 @@ class Controller {
     this._connected = false;
     this._channel = 10;
     this._pressed = {};
-    this._buffer = [];
 
+    this._active = 1;
     this._octave = 3;
+
     this._preset = 1; // for multiple CCs?
-    // FIXME: KBD is for volume, PAD for levels-per-preset?
-    // FIXME: left/right should select from tracks instead of prev/next
     this._offset = 0;
     this._mode = 'K';
-
-    // for sending CC values
-    this._states = {};
-
-    // effects
-    this._active = 0;
-    this._levels = [];
 
     // volume
     this._master = 90;
@@ -298,8 +292,8 @@ class Controller {
   }
 
   dsel(length) {
-    return Array.from({ length }).map(() => {
-      return this.format('_', 2);
+    return Array.from({ length }).map((_, k) => {
+      return this._active - 1 === k ? '↑' : ' ';
     }).join(' ');
   }
 
@@ -368,71 +362,26 @@ class Controller {
       if (!this.get('Mute', x)) return this.format('▓', 32);
     };
 
+    const send1 = this.format('1', this._mode === '1' ? 1 : 2);
+    const send2 = this.format('2', this._mode === '2' ? 1 : 2);
+    const volume = this.format('V', this._mode === 'V' ? 1 : 2);
+
     // FIXME: try to render one line at-once only?
-    this.ln(`${this.dpads(10)}  ${this.dchars('1234567890', ' ')}     ${this.dfadr(16, getLevel('Send1'))}`, '\n');
-    this.ln(`${this.dpads(10)}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send2'))}`, '\n');
-    this.ln(`${this.dpads(10)}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume'))}`, '\n');
+    this.ln(`${this.dpads(10)}  ${this.dchars('1234567890', ' ')}     ${this.dfadr(16, getLevel('Send1'))} ${send1}`, '\n');
+    this.ln(`${this.dpads(10)}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send2'))} ${send2}`, '\n');
+    this.ln(`${this.dpads(10)}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume'))} ${volume}`, '\n');
     this.ln(`${this.dpads(10)}  ${this.dchars('<>')} ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, getValue)}`, '\n');
-    this.ln(`${this.dsel(10)} \x1B[24C ${this.dsel(16)}`, `\x1B[5A\r${suffix}`);
+    this.ln(`\x1B[44C ${this.dsel(16)}`, `\x1B[5A\r${suffix}`);
 
-    // const label = value ? this.format(value, '30;43') : '';
-    // const offset = this._mode === 'KBD' ? this._octave : this._preset;
-    // const general = !this._active ? this.format(this.pad(this._master), 4) : this.pad(this._master);
-
-    // this.ln(`#${this._mode}${this.pad(offset, 2)} ${general} ${Array.from({ length: 10 }).map((_, x) => {
-    //   const current = this._levels[x + 1] || 0;
-
-    //   let level = this.pad(current);
-
-    //   if (current > 85) {
-    //     level = this.format(level, 31);
-    //   } else if (current > 42) {
-    //     level = this.format(level, 33);
-    //   } else {
-    //     level = this.format(level, 32);
-    //   }
-
-    //   if (this._active === (x + 1)) {
-    //     return this.format(level, 4);
-    //   }
-
-    //   return level;
-    // }).join(' ')}${this._buffer.length ? ` [${this._buffer.join(', ')}]` : ''}`, '\n');
-
-    // if (this._mode !== 'PAD') {
-    //   this.ln(label, '\x1B[1A\r');
-    //   return;
-    // }
-
-    // this.ln('1234567890 QWERTYUIOP ASDFGHJKLÑ ZXCVBNM,.-'.split('').map(char => {
-    //   if (char !== ' ') {
-    //     if (MAPPINGS[char] && !this._states[MAPPINGS[char].index]) {
-    //       return this.format(char, 2);
-    //     }
-    //   }
-
-    //   return char;
-    // }).join(''), '\x1B[1A\r');
+    return true;
   }
-
-  // step=0 mute on/off
-  // step=1 solo on/off
-  // step=2 send1 level
-  // step=3 volume level
-  // update(nth, step, value) {
-  //   this.out.send('cc', {
-  //     channel: this._channel,
-  //     controller: Math.floor((step + (nth / 10)) * (127 / 12)),
-  //     value,
-  //   });
-  // }
 
   update() {
     clearTimeout(this._render);
     this._render = setTimeout(() => {
       clearTimeout(this._render);
       this.render();
-    }, 120);
+    }, 50);
   }
 
   clear() {
@@ -452,6 +401,14 @@ class Controller {
     return this._state[name]
       ? this._state[name][index]
       : undefined;
+  }
+
+  play() {
+    return this.sendCC(120, 127);
+  }
+
+  stop() {
+    return this.sendCC(120, 0);
   }
 
   add() {
@@ -511,41 +468,53 @@ class Controller {
     setTimeout(() => {
       this._pressed[ch] = false;
       this.render();
-    }, 120);
+    }, 50);
 
     return true;
   }
 
   up(shift) {
-    // const offset = shift ? 10 : 1;
+    const offset = shift ? 10 : 1;
 
-    // if (this._active) {
-    //   this._levels[this._active] = Math.min(127, (this._levels[this._active] || 0) + offset);
-    //   this.update(this._active - 1, 2, this._levels[this._active]);
-    // } else {
-    //   this._master = Math.min(127, (this._master || 0) + offset);
-    // }
-    // this.render();
-    // return true;
+    if (!this._active) {
+      this._master = Math.min(127, (this._master || 0) + offset);
+    } else {
+      if (this._mode === 'V') this.send('Volume', this._active - 1, offset);
+      if (this._mode === '1') this.send('Send1', this._active - 1, offset);
+      if (this._mode === '2') this.send('Send2', this._active - 1, offset);
+    }
+    return true;
   }
 
   down(shift) {
-    // const offset = shift ? 10 : 1;
+    const offset = shift ? 10 : 1;
 
-    // if (this._active) {
-    //   this._levels[this._active] = Math.max(0, (this._levels[this._active] || 0) - offset);
-    //   this.update(this._active - 1, 2, this._levels[this._active]);
-    // } else {
-    //   this._master = Math.max(0, (this._master || 0) - offset);
-    // }
-    // this.render();
-    // return true;
+    if (!this._active) {
+      this._master = Math.max(0, (this._master || 0) - offset);
+    } else {
+      if (this._mode === 'V') this.send('Volume', this._active - 1, -offset);
+      if (this._mode === '1') this.send('Send1', this._active - 1, -offset);
+      if (this._mode === '2') this.send('Send2', this._active - 1, -offset);
+    }
+    return true;
   }
 
   left(shift) {
+    if (shift) {
+      this.sendCC(121, 0);
+    } else {
+      this._active = Math.max(1, this._active - 1);
+    }
+    return this.render();
   }
 
   right(shift) {
+    if (shift) {
+      this.sendCC(121, 127);
+    } else {
+      this._active = Math.min(16, this._active + 1);
+    }
+    return this.render();
   }
 
   inc() {
@@ -564,32 +533,27 @@ class Controller {
     this._preset = Math.min(2, this._preset + 1);
   }
 
-  send(value) {
-    // const code = value.split('').map(x => x.charCodeAt());
+  send(type, index, offset) {
+    const current = this.get(type, index);
+    const fixedValue = Math.max(0, Math.min(127, (current || 0) + offset));
+    const key = TYPES.findIndex(x => x[0] === type);
 
-    // if (code.length === 1) {
-    //   code.unshift('\0');
-    // }
-
-    // const hex = code.map(x => x.toString(16)).join('');
-
-    // // this.log(value, `f0${hex}f7`);
-    // this.out.send('sysex', [240, ...code, 247]);
-
-    // return true;
+    this.set(type, index, fixedValue);
+    this.out.send('cc', {
+      controller: (key * 16) + index,
+      channel: this._channel,
+      value: fixedValue,
+    });
+    return true;
   }
 
-  sendCC(ch) {
-    // this._states[ch.index] = !this._states[ch.index];
-
-    // this.out.send('cc', {
-    //   value: this._states[ch.index] ? 127 : 0,
-    //   controller: ch.index,
-    //   channel: this._channel,
-    // });
-
-    // this.render();
-    // return true;
+  sendCC(controller, value) {
+    this.out.send('cc', {
+      channel: this._channel,
+      controller,
+      value,
+    });
+    return true;
   }
 
   // FIXME: try supporting keydown/keyup with https://github.com/wilix-team/iohook for real pressure?
@@ -613,7 +577,6 @@ class Controller {
       });
       this.render();
     }, 120);
-
     return true;
   }
 }

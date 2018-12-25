@@ -5,14 +5,6 @@ host.defineMidiPorts(1, 1);
 
 const kPad = {};
 
-// FIXME: this can be generated?
-const CTRL_ACTIONS = {
-  f0657363617065f7: function () { this.transport.stop(); },
-  f07370616365f7: function () { this.transport.play(); },
-  f070726576f7: function () { this.cursorTrack.selectPrevious(); },
-  f06e657874f7: function () { this.cursorTrack.selectNext(); },
-};
-
 function log(msg) {
   host.showPopupNotification('kPad - ' + msg);
   println(msg);
@@ -34,7 +26,7 @@ function sendState(source, offset) {
   });
 }
 
-function isCC(data1) { return data1 >= 80; }
+function isCC(data1) { return data1 >= 80 && data1 < 120; }
 function isMute(data1) { return data1 < 16; }
 function isSolo(data1) { return data1 < 32 && data1 >= 16; }
 function isSend1(data1) { return data1 < 48 && data1 >= 32; }
@@ -81,6 +73,14 @@ function onMidi(status, data1, data2) {
     if (isSend2(data1)) { kPad.trackBank.getChannel(data1 - 48).getSend(1).set(data2, 128); }
     if (isVolume(data1)) { kPad.trackBank.getChannel(data1 - 64).getVolume().set(data2, 128); }
     if (isCC(data1)) { kPad.userControls.getControl(j).set(data2); }
+    if (data1 === 120) {
+      if (data2 > 64) { kPad.transport.play(); }
+      else { kPad.transport.stop(); }
+    }
+    if (data1 === 121) {
+      if (data2 > 64) { kPad.cursorTrack.selectNext(); }
+      else { kPad.cursorTrack.selectPrevious(); }
+    }
   } else {
     println(status + ',' + data1 + ',' + data2);
   }
