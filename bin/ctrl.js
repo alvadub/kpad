@@ -31,9 +31,9 @@ const easymidi = require('easymidi');
 const MODES = [
   ['K', 'KBD'],
   ['P', 'PADS'],
+  ['V', 'VOLUME'],
   ['1', 'SEND1'],
   ['2', 'SEND2'],
-  ['V', 'VOLUME'],
 ];
 
 const TYPES = [
@@ -175,6 +175,7 @@ class Controller {
     this._connected = false;
     this._channel = 10;
     this._pressed = {};
+    this._enabled = {};
 
     this._active = 1;
     this._octave = 3;
@@ -303,13 +304,6 @@ class Controller {
 
   dpads(length, empty, cb) {
     return Array.from({ length }).map((_, k) => {
-      // 31 red
-      // 32 green
-      // 33 yellow
-      // 34 blue
-      // 35 violet
-      // 36 cyan
-      // 37 silver
       return (cb && cb(k)) || this.format(empty || '░', 2);
     }).join(' ');
   }
@@ -376,15 +370,26 @@ class Controller {
       }
     };
 
+    const getState = offset => x => {
+      const index = (offset + x) - 80;
+      const char = Object.keys(MAPPINGS)[index];
+
+      if (this._enabled[char]) {
+        if (this._mode === 'K') return this.format('▒', 34);
+        return this.format(char, 34);
+      }
+    };
+
+    const pads = this.format('P', this._mode === 'P' ? 1 : 2);
     const send1 = this.format('1', this._mode === '1' ? 1 : 2);
     const send2 = this.format('2', this._mode === '2' ? 1 : 2);
     const volume = this.format('V', this._mode === 'V' ? 1 : 2);
 
     // FIXME: try to render one line at-once only?
-    this.ln(`${this.dpads(10)}  ${this.dchars('1234567890', ' ')}     ${this.dfadr(16, getLevel('Send1', '1'))} ${send1}`, '\n');
-    this.ln(`${this.dpads(10)}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send2', '2'))} ${send2}`, '\n');
-    this.ln(`${this.dpads(10)}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume', 'V'))} ${volume}`, '\n');
-    this.ln(`${this.dpads(10)}  ${this.dchars('<>')} ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, '◇', getValue)}`, '\n');
+    this.ln(`${this.dpads(10, '░', getState(80))}  ${this.dchars('1234567890', ' ')}     ${this.dfadr(16, getLevel('Send2', '2'))} ${send2}`, '\n');
+    this.ln(`${this.dpads(10, '░', getState(90))}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send1', '1'))} ${send1}`, '\n');
+    this.ln(`${this.dpads(10, '░', getState(100))}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume', 'V'))} ${volume}`, '\n');
+    this.ln(`${this.dpads(10, '░', getState(110))}  ${this.dchars('<>')} ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, '◇', getValue)} ${pads}`, '\n');
     this.ln(`\x1B[44C ${this.dsel(16)}`, `\x1B[5A\r${suffix}`);
 
     return true;
@@ -477,6 +482,10 @@ class Controller {
   // }
 
   tap(ch, shift) {
+    if (this._mode !== 'K' && MAPPINGS[ch]) {
+      this._enabled[ch] = !this._enabled[ch];
+    }
+
     this._pressed[ch] = true;
     this.render();
 
