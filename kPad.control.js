@@ -64,6 +64,10 @@ function init() {
       sendHex('L' + k + ' ' + value);
     });
   }
+
+  kPad.transport.isPlaying().addValueObserver(function (value) {
+    sendMidi(186, 120, value ? 127 : 0);
+  });
 }
 
 function onMidi(status, data1, data2) {

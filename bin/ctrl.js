@@ -223,9 +223,12 @@ class Controller {
     });
 
     this.in.on('cc', msg => {
-      const [type, index, value] = getType(msg);
+      if (msg.controller === 120) {
+        this._playing = msg.value > 64;
+      } else {
+        this.set(...getType(msg));
+      }
 
-      this.set(type, index, value);
       this.update();
     });
 
@@ -238,22 +241,20 @@ class Controller {
         process.stdin.pause();
         process.exit();
       } else {
+        const fixedKey = (key && key.name) || ch;
+        const char = fixedKey.toUpperCase();
+
         let done;
+
+        this.tap(char);
 
         ACTIONS.some(cb => {
           done = cb(ch, key, this);
           return done;
         });
 
-        if (done !== true) {
-          const fixedKey = (key && key.name) || ch;
-          const char = fixedKey.toUpperCase();
-
-          this.tap(char);
-
-          if (this._mode === 'K' && NOTES[char]) {
-            this.sendMidi(NOTES[char], key && key.shift);
-          }
+        if (done !== true && this._mode === 'K' && NOTES[char]) {
+          this.sendMidi(NOTES[char], key && key.shift);
         }
       }
     });
@@ -300,7 +301,7 @@ class Controller {
     }).join(' ');
   }
 
-  dpads(length, cb) {
+  dpads(length, empty, cb) {
     return Array.from({ length }).map((_, k) => {
       // 31 red
       // 32 green
@@ -309,7 +310,7 @@ class Controller {
       // 35 violet
       // 36 cyan
       // 37 silver
-      return (cb && cb(k)) || this.format('▓', 2);
+      return (cb && cb(k)) || this.format(empty || '░', 2);
     }).join(' ');
   }
 
@@ -358,15 +359,21 @@ class Controller {
 
     this.ln(MODES.map((x, k) => (this._offset !== k ? this.format(x[0], 2) : x[0])).join('') + label + info, '\n');
 
-    const getLevel = type => x => {
+    const getLevel = (type, mode) => x => {
       if (this.get(type, x)) {
-        return ' ▁▂▃▄▅▆▇████'.substr(Math.floor(((this.get(type, x) / 127) * 100) / 10), 1);
+        const value = ' ▁▂▃▄▅▆▇████'.substr(Math.floor(((this.get(type, x) / 127) * 100) / 10), 1);
+
+        if (this._mode !== mode) return this.format(value, 2);
+
+        return value;
       }
     };
 
     const getValue = x => {
-      if (this.get('Solo', x)) return this.format('▓', 33);
-      if (!this.get('Mute', x)) return this.format('▓', 32);
+      if (this._connected) {
+        if (this.get('Solo', x)) return this.format('◆', 33);
+        if (!this.get('Mute', x)) return this.format('◇', 32);
+      }
     };
 
     const send1 = this.format('1', this._mode === '1' ? 1 : 2);
@@ -374,10 +381,10 @@ class Controller {
     const volume = this.format('V', this._mode === 'V' ? 1 : 2);
 
     // FIXME: try to render one line at-once only?
-    this.ln(`${this.dpads(10)}  ${this.dchars('1234567890', ' ')}     ${this.dfadr(16, getLevel('Send1'))} ${send1}`, '\n');
-    this.ln(`${this.dpads(10)}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send2'))} ${send2}`, '\n');
-    this.ln(`${this.dpads(10)}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume'))} ${volume}`, '\n');
-    this.ln(`${this.dpads(10)}  ${this.dchars('<>')} ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, getValue)}`, '\n');
+    this.ln(`${this.dpads(10)}  ${this.dchars('1234567890', ' ')}     ${this.dfadr(16, getLevel('Send1', '1'))} ${send1}`, '\n');
+    this.ln(`${this.dpads(10)}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send2', '2'))} ${send2}`, '\n');
+    this.ln(`${this.dpads(10)}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume', 'V'))} ${volume}`, '\n');
+    this.ln(`${this.dpads(10)}  ${this.dchars('<>')} ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, '◇', getValue)}`, '\n');
     this.ln(`\x1B[44C ${this.dsel(16)}`, `\x1B[5A\r${suffix}`);
 
     return true;
