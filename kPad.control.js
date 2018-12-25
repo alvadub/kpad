@@ -56,7 +56,8 @@ function init() {
     sendState(kPad.trackBank.getChannel(i).getVolume().value(), i + 64);
   }
 
-  // FIXME: CC-observers are missing...
+  // FIXME: CC-observers are missing
+  // FIXME: track-selection is missing
 
   for (let k = 0; k < 16; k += 1) {
     kPad.trackBank.getChannel(k).name().addValueObserver(8, '', function (value) {

@@ -350,7 +350,11 @@ class Controller {
     const preset = this.format(`#${this._preset}`, this._mode === 'K' ? 2 : 1);
     const octave = this.format(`${this._octave}♪`, this._mode !== 'K' ? 2 : 1);
 
-    const info = `  ${status} ${value} ${octave} ${this.format('/', 2)} ${preset}  ${this.format('TEST', 2)}`;
+    const name = this._state.Name
+      ? this.format(this._state.Name[this._active - 1], 2)
+      : '';
+
+    const info = `  ${status} ${value} ${octave} ${this.format('/', 2)} ${preset}  ${name}`;
 
     this.ln(MODES.map((x, k) => (this._offset !== k ? this.format(x[0], 2) : x[0])).join('') + label + info, '\n');
 
