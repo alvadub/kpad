@@ -88,11 +88,14 @@ function onMidi(status, data1, data2) {
 
 // FIXME: try sysex to receive repl-like commands?
 function onSysex(data) {
-  if (CTRL_ACTIONS[data]) {
-    CTRL_ACTIONS[data].call(kPad);
-  } else {
-    println(data);
+  const chars = data.split('');
+  const pairs = [];
+
+  for (let i = 2; i < chars.length - 2; i += 2) {
+    pairs.push(String.fromCharCode(parseInt('0x' + chars[i] + chars[i + 1])));
   }
+
+  println(pairs.join(''));
 }
 
 function exit()
