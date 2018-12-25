@@ -162,8 +162,6 @@ const ACTIONS = [
   (ch, key, ctrl) => key && key.name === 'escape' && ctrl.stop(),
   (ch, key, ctrl) => key && key.name === 'return' && ctrl.add(),
   (ch, key, ctrl) => key && key.name === 'backspace' && ctrl.drop(),
-  (ch, key, ctrl) => ch === '<' && ctrl.dec(),
-  (ch, key, ctrl) => ch === '>' && ctrl.inc(),
 ];
 
 class Controller {
@@ -344,7 +342,7 @@ class Controller {
     const master = this.format(`${this.spad(-1, Math.round((this._master / 127) * 100), 4)}%`, this._mode !== 'K' ? 2 : 1);
 
     const name = this._state.Name
-      ? this.format(this._state.Name[this._active - 1], 2)
+      ? this.format(this._state.Name[this._active - 1], this._mode === 'K' ? 2 : 1)
       : '';
 
     const info = `  ${status} ${value} ${octave} ${master}  ${name}`;
@@ -363,8 +361,8 @@ class Controller {
 
     const getValue = x => {
       if (this._connected) {
-        if (this.get('Solo', x) > 64) return this.format('◆', 33);
-        if (!(this.get('Mute', x) > 64)) return this.format('◆', 32);
+        if (this.get('Solo', x) > 64) return this.format(this._mode === 'P' ? '◆' : '◇', 33);
+        if (!(this.get('Mute', x) > 64)) return this.format(this._mode === 'P' ? '◆' : '◇', 32);
       }
     };
 
@@ -387,7 +385,7 @@ class Controller {
     this.ln(`${this.dpads(10, '░', getState(80))}  ${this.dchars('1234567890', ' ')}     ${this.dfadr(16, getLevel('Send2', '2'))} ${send2}`, '\n');
     this.ln(`${this.dpads(10, '░', getState(90))}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send1', '1'))} ${send1}`, '\n');
     this.ln(`${this.dpads(10, '░', getState(100))}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume', 'V'))} ${volume}`, '\n');
-    this.ln(`${this.dpads(10, '░', getState(110))}  ${this.dchars('<>')} ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, '◇', getValue)} ${pads}`, '\n');
+    this.ln(`${this.dpads(10, '░', getState(110))}     ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, '◇', getValue)} ${pads}`, '\n');
     this.ln(`${this.format(this.spad(1, this._message || '', 45), 1)} ${this.dsel(16)}`, `\x1B[5A\r${suffix}`);
 
     return true;
@@ -425,21 +423,22 @@ class Controller {
   }
 
   play() {
-    this.log('Playing...');
+    this.log(this._playing ? 'PAUSE' : 'PLAY');
     return this.sendCC(120, 127);
   }
 
   stop() {
+    if (this._playing) this.log('STOP');
     return this.sendCC(120, 0);
   }
 
   add() {
-    this.send('Mute', this._active - 1, 0);
+    if (this._mode !== 'K') this.send('Mute', this._active - 1, 0);
     return true;
   }
 
   drop() {
-    this.send('Solo', this._active - 1, 0);
+    if (this._mode !== 'K') this.send('Solo', this._active - 1, 0);
     return true;
   }
 
@@ -509,6 +508,9 @@ class Controller {
     } else if (this._mode !== 'K') {
       this._active = Math.max(1, this._active - 1);
       this.render();
+    } else {
+      this._octave = Math.max(1, this._octave - 1);
+      this.render();
     }
     return true;
   }
@@ -519,16 +521,11 @@ class Controller {
     } else if (this._mode !== 'K') {
       this._active = Math.min(16, this._active + 1);
       this.render();
+    } else {
+      this._octave = Math.min(8, this._octave + 1);
+      this.render();
     }
     return true;
-  }
-
-  inc() {
-    this._octave = Math.min(8, this._octave + 1);
-  }
-
-  dec() {
-    this._octave = Math.max(1, this._octave - 1);
   }
 
   send(type, index, offset) {
