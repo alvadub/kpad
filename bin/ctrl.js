@@ -35,7 +35,21 @@ const TYPES = {
   Send2: data1 => data1 < 64 && data1 >= 48,
   Volume: data1 => data1 < 80 && data1 >= 64,
   CC: data1 => data1 >= 80,
-};
+}
+
+function getType(msg) {
+  const { controller, value } = msg;
+
+  const keys = Object.keys(TYPES);
+
+  for (let i = 0; i < keys.length; i += 1) {
+    if (TYPES[keys[i]](controller)) {
+      return [keys[i], controller - (i * 16), value];
+    }
+  }
+
+  return [undefined, controller, value]
+}
 
 // FIXME: read/write state and load/save from/to biwtwig? :V
 const MAPPINGS = {
@@ -187,11 +201,23 @@ class Controller {
       this.in = new easymidi.Input(deviceName, true);
     }
 
-    this.in.on('cc', msg => {
-      const { controller, value } = msg;
-      const [type, channel] = this.getInfo(controller);
+    this.in.on('sysex', msg => {
+      const [key, ...value] = msg.bytes.slice(1, msg.bytes.length - 1).map(function (x) {
+        return String.fromCharCode(x);
+      }).join('').split(' ');
 
-      this.render(`${type} #${channel} ${value}`);
+      const index = parseInt(key.substr(1), 10);
+
+      // FIXME: L* for labels
+      if (key.charAt() === 'L') {
+        console.log(index, value.join(' '));
+      }
+    });
+
+    this.in.on('cc', msg => {
+      const [type, index, value] = getType(msg);
+
+      this.render(`${type} #${index + 1} ${value}`);
 
       clearTimeout(this._render);
       this._render = setTimeout(() => {
@@ -236,16 +262,6 @@ class Controller {
 
     process.stdin.setRawMode(true);
     process.stdin.resume();
-  }
-
-  getInfo(value) {
-    const types = Object.keys(TYPES);
-
-    for (let i = 0; i < types.length; i += 1) {
-      if (TYPES[types[i]](value)) {
-        return [types[i], value - (i * 16)];
-      }
-    }
   }
 
   log(...msg) {

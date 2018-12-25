@@ -3,9 +3,7 @@ host.setShouldFailOnDeprecatedUse(true);
 host.defineController('Generic', 'kPad', '1.0', 'F3CFFC62-4B9E-4703-91EC-6741E3419572');
 host.defineMidiPorts(1, 1);
 
-const kPad = {
-  // state: {},
-};
+const kPad = {};
 
 // FIXME: this can be generated?
 const CTRL_ACTIONS = {
@@ -18,6 +16,14 @@ const CTRL_ACTIONS = {
 function log(msg) {
   host.showPopupNotification('kPad - ' + msg);
   println(msg);
+}
+
+function sendHex(value) {
+  const encoded = value.split('').map(function(chunk) {
+    return chunk.charCodeAt().toString(16);
+  });
+
+  sendSysex('f0' + encoded.join('') + 'f7');
 }
 
 function sendState(source, offset) {
@@ -43,7 +49,7 @@ function init() {
   kPad.transport = host.createTransport();
   kPad.trackBank = host.createTrackBank(16, 2, 8);
   kPad.cursorTrack = host.createCursorTrack(2, 16);
-  kPad.userControls = host.createUserControls(40);
+  // kPad.userControls = host.createUserControls(40);
 
   // 0-127 = 16 tracks
   // 80 mute/solo/send/volume
@@ -58,8 +64,12 @@ function init() {
     sendState(kPad.trackBank.getChannel(i).getVolume().value(), i + 64);
   }
 
-  for (let j = 0; j < 40; j += 1) {
-    sendState(kPad.userControls.getControl(j).value(), j + 80);
+  // FIXME: CC-observers are missing...
+
+  for (let k = 0; k < 16; k += 1) {
+    kPad.trackBank.getChannel(k).name().addValueObserver(8, '', function (value) {
+      sendHex('L' + k + ' ' + value);
+    });
   }
 }
 
@@ -76,29 +86,8 @@ function onMidi(status, data1, data2) {
   }
 }
 
+// FIXME: try sysex to receive repl-like commands?
 function onSysex(data) {
-  // if (data.indexOf('f07b') === 0 && data.lastIndexOf('7df7') === data.length - 4) {
-  //   const chars = data.split('');
-  //   const couples = [];
-
-  //   for (let i = 2; i < chars.length - 2; i += 2) {
-  //     couples.push(String.fromCharCode(parseInt('0x' + chars[i] + chars[i + 1])));
-  //   }
-
-  //   var data;
-
-  //   try {
-  //     data = JSON.parse(couples.join(''));
-  //   } catch (e) {}
-
-  //   Object.keys(data).forEach(function (key) {
-  //     kPad.state[key] = data[key];
-  //   });
-
-  //   log('state synced');
-  //   return;
-  // }
-
   if (CTRL_ACTIONS[data]) {
     CTRL_ACTIONS[data].call(kPad);
   } else {
