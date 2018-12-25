@@ -28,23 +28,21 @@ const easymidi = require('easymidi');
 // ^
 //  `--down/up octaves
 
-const TYPES = {
-  Mute: data1 => data1 < 16,
-  Solo: data1 => data1 < 32 && data1 >= 16,
-  Send1: data1 => data1 < 48 && data1 >= 32,
-  Send2: data1 => data1 < 64 && data1 >= 48,
-  Volume: data1 => data1 < 80 && data1 >= 64,
-  CC: data1 => data1 >= 80,
-}
+const TYPES = [
+  ['CC', data1 => data1 >= 80],
+  ['Mute', data1 => data1 < 16],
+  ['Solo', data1 => data1 < 32 && data1 >= 16],
+  ['Send1', data1 => data1 < 48 && data1 >= 32],
+  ['Send2', data1 => data1 < 64 && data1 >= 48],
+  ['Volume', data1 => data1 < 80 && data1 >= 64],
+];
 
 function getType(msg) {
   const { controller, value } = msg;
 
-  const keys = Object.keys(TYPES);
-
-  for (let i = 0; i < keys.length; i += 1) {
-    if (TYPES[keys[i]](controller)) {
-      return [keys[i], controller - (i * 16), value];
+  for (let i = 0; i < TYPES.length; i += 1) {
+    if (TYPES[i][1](controller)) {
+      return [TYPES[i][0], controller - (i * 16), value];
     }
   }
 
@@ -182,6 +180,7 @@ class Controller {
 
     // volume
     this._master = 90;
+    this._state = {};
 
     const deviceName = 'kPAD I';
 
@@ -208,9 +207,9 @@ class Controller {
 
       const index = parseInt(key.substr(1), 10);
 
-      // FIXME: L* for labels
       if (key.charAt() === 'L') {
-        console.log(index, value.join(' '));
+        this.set('Name', index, value.join(' '));
+        this.render();
       }
     });
 
@@ -218,6 +217,7 @@ class Controller {
       const [type, index, value] = getType(msg);
 
       this.render(`${type} #${index + 1} ${value}`);
+      this.set(type, index, value);
 
       clearTimeout(this._render);
       this._render = setTimeout(() => {
@@ -331,6 +331,20 @@ class Controller {
       controller: Math.floor((step + (nth / 10)) * (127 / 12)),
       value,
     });
+  }
+
+  set(name, index, value) {
+    if (!this._state[name]) {
+      this._state[name] = [];
+    }
+
+    this._state[name][index] = value;
+  }
+
+  get(name, index) {
+    return this._state[name]
+      ? this._state[name][index]
+      : undefined;
   }
 
   add() {
