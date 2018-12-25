@@ -163,15 +163,15 @@ const ACTIONS = [
 class Controller {
   constructor() {
     this._channel = 10;
-    this._offset = 0;
     this._buffer = [];
 
     this._octave = 3;
     this._preset = 1; // for multiple CCs?
     // FIXME: KBD is for volume, PAD for levels-per-preset?
     // FIXME: left/right should select from tracks instead of prev/next
-    // this._modes = TYPES.map(x => x[0]);
-    this._mode = 'PAD';
+    this._offset = 0;
+    this._modes = 'PK12V';
+    this._mode = 'P';
 
     // for sending CC values
     this._states = {};
@@ -252,13 +252,13 @@ class Controller {
             done = this.sendMidi(NOTES[char], key && key.shift);
           }
 
-          if (this._mode === 'PAD' && MAPPINGS[char]) {
-            done = this.sendCC(MAPPINGS[char]);
-          }
+          // if (this._mode === 'PAD' && MAPPINGS[char]) {
+          //   done = this.sendCC(MAPPINGS[char]);
+          // }
 
-          if (done !== true) {
-            this.tap(ch, key);
-          }
+          // if (done !== true) {
+          //   this.tap(ch, key);
+          // }
         }
       }
     });
@@ -286,7 +286,10 @@ class Controller {
   render(value) {
     const suffix = this._offset ? `\x1B[${this._offset}C` : '';
 
-    this.ln('ABCDEF', '\n');
+    this.ln(this._modes.split('').map(x => {
+      return this._mode !== x ? this.format(x, 2) : x;
+    }).join(''), '\n');
+
     this.ln('N', '\n');
     this.ln('N', '\n');
     this.ln('N', '\n');
@@ -390,14 +393,16 @@ class Controller {
     // return true;
   }
 
-  mode() {
-    // if (this._mode === 'KBD') {
-    //   this._mode = 'PAD';
-    // } else {
-    //   this._mode = 'KBD';
-    // }
-    // this.render();
-    // return true;
+  mode(shift) {
+    if (shift) {
+      this._offset = Math.max(0, this._offset - 1);
+    } else {
+      this._offset = Math.min(4, this._offset + 1);
+    }
+
+    this._mode = this._modes.substr(this._offset, 1);
+    this.render();
+    return true;
   }
 
   // sync() {
@@ -451,7 +456,6 @@ class Controller {
     // } else {
     //   this._active = Math.max(0, this._active - 1);
     // }
-    this._offset = Math.max(0, this._offset - 1);
     this.render();
     return true;
   }
@@ -462,7 +466,6 @@ class Controller {
     // } else {
     //   this._active = Math.min(10, this._active + 1);
     // }
-    this._offset = Math.min(16, this._offset + 1);
     this.render();
     return true;
   }
@@ -521,27 +524,27 @@ class Controller {
 
   // FIXME: try supporting keydown/keyup with https://github.com/wilix-team/iohook for real pressure?
   sendMidi(ch, accent) {
-    // this.render(ch.name);
+    this.render(ch.name);
 
-    // const fixedNote = ch.note + (12 * (this._octave - 1));
-    // const fixedAccent = this._master + (this._master / 100 * 20);
+    const fixedNote = ch.note + (12 * (this._octave - 1));
+    const fixedAccent = this._master + (this._master / 100 * 20);
 
-    // this.out.send('noteon', {
-    //   note: fixedNote,
-    //   velocity: Math.min(127, accent ? fixedAccent : this._master),
-    //   channel: this._channel,
-    // });
+    this.out.send('noteon', {
+      note: fixedNote,
+      velocity: Math.min(127, accent ? fixedAccent : this._master),
+      channel: this._channel,
+    });
 
-    // setTimeout(() => {
-    //   this.render();
-    //   this.out.send('noteoff', {
-    //     note: fixedNote,
-    //     velocity: this._master,
-    //     channel: this._channel,
-    //   });
-    // }, 120);
+    setTimeout(() => {
+      this.out.send('noteoff', {
+        note: fixedNote,
+        velocity: this._master,
+        channel: this._channel,
+      });
+      this.render();
+    }, 120);
 
-    // return true;
+    return true;
   }
 }
 
