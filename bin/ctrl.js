@@ -246,12 +246,12 @@ class Controller {
 
         let done;
 
-        this.tap(char);
-
         ACTIONS.some(cb => {
           done = cb(ch, key, this);
           return done;
         });
+
+        this.tap(char);
 
         if (done !== true && this._mode === 'K' && NOTES[char]) {
           this.sendMidi(NOTES[char], key && key.shift);
@@ -506,19 +506,21 @@ class Controller {
   left(shift) {
     if (shift) {
       this.sendCC(121, 0);
-    } else {
+    } else if (this._mode !== 'K') {
       this._active = Math.max(1, this._active - 1);
+      this.render();
     }
-    return this.render();
+    return true;
   }
 
   right(shift) {
     if (shift) {
       this.sendCC(121, 127);
-    } else {
+    } else if (this._mode !== 'K') {
       this._active = Math.min(16, this._active + 1);
+      this.render();
     }
-    return this.render();
+    return true;
   }
 
   inc() {
