@@ -14,9 +14,7 @@ const easymidi = require('easymidi');
 // ^
 //  `--type sequence + ENTER to on/off
 //
-// <> Z X C V B N M , . - (arrangement timeline)
-// ^
-//  `--left/right presets
+//    Z X C V B N M , . - (arrangement timeline)
 //
 ////// KEYBOARD
 //
@@ -164,23 +162,24 @@ const ACTIONS = [
   (ch, key, ctrl) => key && key.name === 'escape' && ctrl.stop(),
   (ch, key, ctrl) => key && key.name === 'return' && ctrl.add(),
   (ch, key, ctrl) => key && key.name === 'backspace' && ctrl.drop(),
-  (ch, key, ctrl) => ch === '<' && ctrl._mode === 'K' && ctrl.dec(),
-  (ch, key, ctrl) => ch === '>' && ctrl._mode === 'K' && ctrl.inc(),
-  (ch, key, ctrl) => ch === '<' && ctrl._mode !== 'K' && ctrl.prev(),
-  (ch, key, ctrl) => ch === '>' && ctrl._mode !== 'K' && ctrl.next(),
+  (ch, key, ctrl) => ch === '<' && ctrl.dec(),
+  (ch, key, ctrl) => ch === '>' && ctrl.inc(),
 ];
 
 class Controller {
   constructor() {
     this._connected = false;
     this._channel = 10;
+
+    // feedback
     this._pressed = {};
     this._enabled = {};
 
+    // offsets
     this._active = 1;
     this._octave = 3;
 
-    this._preset = 1; // for multiple CCs?
+    // modes
     this._offset = 0;
     this._mode = 'K';
 
@@ -279,7 +278,7 @@ class Controller {
   }
 
   spad(type, value, offset) {
-    const padding = Array.from({ length: offset - value.length }).join(' ');
+    const padding = Array.from({ length: offset - String(value).length }).join(' ');
 
     if (type > 0) {
       return `${value}${padding}`;
@@ -295,13 +294,9 @@ class Controller {
     return `${left}${value}${right}`;
   }
 
-  npad(value, offset) {
-    return `00${value}`.substr(offset ? offset * -1 : -3);
-  }
-
   dsel(length) {
     return Array.from({ length }).map((_, k) => {
-      return this._active - 1 === k ? '↑' : ' ';
+      return this._mode !== 'K' && this._active - 1 === k ? '↑' : ' ';
     }).join(' ');
   }
 
@@ -345,14 +340,14 @@ class Controller {
       : this.spad(0, '', length);
 
     const status = this.format(`${symbol} ESC`, this._pressed.ESCAPE ? 1 : 2);
-    const preset = this.format(`#${this._preset}`, this._mode === 'K' ? 2 : 1);
     const octave = this.format(`${this._octave}♪`, this._mode !== 'K' ? 2 : 1);
+    const master = this.format(`${this.spad(-1, Math.round((this._master / 127) * 100), 4)}%`, this._mode !== 'K' ? 2 : 1);
 
     const name = this._state.Name
       ? this.format(this._state.Name[this._active - 1], 2)
       : '';
 
-    const info = `  ${status} ${value} ${octave} ${this.format('/', 2)} ${preset}  ${name}`;
+    const info = `  ${status} ${value} ${octave} ${master}  ${name}`;
 
     this.ln(MODES.map((x, k) => (this._offset !== k ? this.format(x[0], 2) : x[0])).join('') + label + info, '\n');
 
@@ -416,6 +411,10 @@ class Controller {
       this._state[name] = [];
     }
 
+    if (name !== 'Name') {
+      this.log(`${name} #${index + 1} ${Math.round((value / 127) * 100)}%`);
+    }
+
     this._state[name][index] = value;
   }
 
@@ -426,6 +425,7 @@ class Controller {
   }
 
   play() {
+    this.log('Playing...');
     return this.sendCC(120, 127);
   }
 
@@ -480,7 +480,7 @@ class Controller {
   up(shift) {
     const offset = shift ? 10 : 1;
 
-    if (!this._active) {
+    if (this._mode === 'K') {
       this._master = Math.min(127, (this._master || 0) + offset);
     } else {
       if (this._mode === 'V') this.send('Volume', this._active - 1, offset);
@@ -493,7 +493,7 @@ class Controller {
   down(shift) {
     const offset = shift ? 10 : 1;
 
-    if (!this._active) {
+    if (this._mode === 'K') {
       this._master = Math.max(0, (this._master || 0) - offset);
     } else {
       if (this._mode === 'V') this.send('Volume', this._active - 1, -offset);
@@ -527,14 +527,6 @@ class Controller {
 
   dec() {
     this._octave = Math.max(1, this._octave - 1);
-  }
-
-  prev() {
-    this._preset = Math.max(1, this._preset - 1);
-  }
-
-  next() {
-    this._preset = Math.min(2, this._preset + 1);
   }
 
   send(type, index, offset) {
