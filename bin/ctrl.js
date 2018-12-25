@@ -270,9 +270,12 @@ class Controller {
 
   log(msg) {
     this._message = msg;
-    this.update(500, () => {
+    this.render();
+    clearTimeout(this._notify);
+    this._notify = setTimeout(() => {
       this._message = '';
-    });
+      this.render();
+    }, 500);
   }
 
   spad(type, value, offset) {
@@ -365,8 +368,8 @@ class Controller {
 
     const getValue = x => {
       if (this._connected) {
-        if (this.get('Solo', x)) return this.format('◆', 33);
-        if (!this.get('Mute', x)) return this.format('◇', 32);
+        if (this.get('Solo', x) > 64) return this.format('◆', 33);
+        if (!(this.get('Mute', x) > 64)) return this.format('◆', 32);
       }
     };
 
@@ -390,7 +393,7 @@ class Controller {
     this.ln(`${this.dpads(10, '░', getState(90))}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send1', '1'))} ${send1}`, '\n');
     this.ln(`${this.dpads(10, '░', getState(100))}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume', 'V'))} ${volume}`, '\n');
     this.ln(`${this.dpads(10, '░', getState(110))}  ${this.dchars('<>')} ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, '◇', getValue)} ${pads}`, '\n');
-    this.ln(`\x1B[44C ${this.dsel(16)}`, `\x1B[5A\r${suffix}`);
+    this.ln(`${this.format(this.spad(1, this._message || '', 45), 1)} ${this.dsel(16)}`, `\x1B[5A\r${suffix}`);
 
     return true;
   }
@@ -398,7 +401,6 @@ class Controller {
   update(ms, clear) {
     clearTimeout(this._render);
     this._render = setTimeout(() => {
-      clearTimeout(this._render);
       if (clear) clear();
       this.render();
     }, ms || 50);
@@ -432,29 +434,13 @@ class Controller {
   }
 
   add() {
-    // if (this._active) {
-    //   // return turn on/off solo from buffer, while backspace resets everything?
-    //   const offset = this._buffer.indexOf(this._active);
-
-    //   if (offset === -1) {
-    //     this._buffer.push(this._active);
-    //   } else {
-    //     this._buffer.splice(offset, 1);
-    //   }
-    //   this.render();
-    // }
-    // return true;
+    this.send('Mute', this._active - 1, 0);
+    return true;
   }
 
   drop() {
-    // if (this._active) {
-    //   // FIXME: disable all solos at once!
-    //   // this._buffer.forEach(x => {
-    //   // });
-    //   this._buffer = [];
-    //   this.render();
-    // }
-    // return true;
+    this.send('Solo', this._active - 1, 0);
+    return true;
   }
 
   mode(shift) {
@@ -469,17 +455,11 @@ class Controller {
     return true;
   }
 
-  // sync() {
-  //   clearTimeout(this._saving);
-  //   this._saving = setTimeout(() => {
-  //     clearTimeout(this._saving);
-
-  //     this.send(JSON.stringify({
-  //       some: 'state' + new Date().toISOString(),
-  //     }));
-  //   }, 1000);
-  //   return true;
-  // }
+  sync() {
+    this.log('Sync in progres...');
+    // FIXME: send CC values?
+    return true;
+  }
 
   tap(ch, shift) {
     if (this._mode !== 'K' && MAPPINGS[ch]) {
