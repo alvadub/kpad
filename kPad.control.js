@@ -71,6 +71,8 @@ function init() {
 }
 
 function onMidi(status, data1, data2) {
+  println(status + ',' + data1 + ',' + data2);
+
   if (status === 186) {
     if (isMute(data1)) { kPad.trackBank.getChannel(data1).getMute().set(data2 !== 127) }
     if (isSolo(data1)) { kPad.trackBank.getChannel(data1 - 16).getSolo().set(data2 !== 127); }
@@ -86,8 +88,6 @@ function onMidi(status, data1, data2) {
       if (data2 > 64) { kPad.cursorTrack.selectNext(); }
       else { kPad.cursorTrack.selectPrevious(); }
     }
-  } else {
-    println(status + ',' + data1 + ',' + data2);
   }
 }
 

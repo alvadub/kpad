@@ -56,48 +56,48 @@ function getType(msg) {
 }
 
 // FIXME: read/write state and load/save from/to biwtwig? :V
-const MAPPINGS = {
-  '1': { index: 1 },
-  '2': { index: 2 },
-  '3': { index: 3 },
-  '4': { index: 4 },
-  '5': { index: 5 },
-  '6': { index: 6 },
-  '7': { index: 7 },
-  '8': { index: 8 },
-  '9': { index: 9 },
-  '0': { index: 10 },
-  'Q': { index: 11 },
-  'W': { index: 12 },
-  'E': { index: 13 },
-  'R': { index: 14 },
-  'T': { index: 15 },
-  'Y': { index: 16 },
-  'U': { index: 17 },
-  'I': { index: 18 },
-  'O': { index: 19 },
-  'P': { index: 20 },
-  'A': { index: 21 },
-  'S': { index: 22 },
-  'D': { index: 23 },
-  'F': { index: 24 },
-  'G': { index: 25 },
-  'H': { index: 26 },
-  'J': { index: 27 },
-  'K': { index: 28 },
-  'L': { index: 29 },
-  'Ñ': { index: 30 },
-  'Z': { index: 31 },
-  'X': { index: 32 },
-  'C': { index: 33 },
-  'V': { index: 34 },
-  'B': { index: 35 },
-  'N': { index: 36 },
-  'M': { index: 37 },
-  ',': { index: 38 },
-  '.': { index: 39 },
-  '-': { index: 40 },
-};
+const MAPPINGS = [
+  ['1', { index: 1 }],
+  ['2', { index: 2 }],
+  ['3', { index: 3 }],
+  ['4', { index: 4 }],
+  ['5', { index: 5 }],
+  ['6', { index: 6 }],
+  ['7', { index: 7 }],
+  ['8', { index: 8 }],
+  ['9', { index: 9 }],
+  ['0', { index: 10 }],
+  ['Q', { index: 11 }],
+  ['W', { index: 12 }],
+  ['E', { index: 13 }],
+  ['R', { index: 14 }],
+  ['T', { index: 15 }],
+  ['Y', { index: 16 }],
+  ['U', { index: 17 }],
+  ['I', { index: 18 }],
+  ['O', { index: 19 }],
+  ['P', { index: 20 }],
+  ['A', { index: 21 }],
+  ['S', { index: 22 }],
+  ['D', { index: 23 }],
+  ['F', { index: 24 }],
+  ['G', { index: 25 }],
+  ['H', { index: 26 }],
+  ['J', { index: 27 }],
+  ['K', { index: 28 }],
+  ['L', { index: 29 }],
+  ['Ñ', { index: 30 }],
+  ['Z', { index: 31 }],
+  ['X', { index: 32 }],
+  ['C', { index: 33 }],
+  ['V', { index: 34 }],
+  ['B', { index: 35 }],
+  ['N', { index: 36 }],
+  ['M', { index: 37 }],
+  [',', { index: 38 }],
+  ['.', { index: 39 }],
+  ['-', { index: 40 }],
+];
 
 ////// OCTAVES
 //
@@ -132,8 +132,8 @@ const NOTES = {
 
   ////// HIGHER NOTES
   'Q': { note: 17, name: 'C' },
-  'W': { note: 18, name: 'C♯/D♭' },
-  '2': { note: 19, name: 'D' },
+  'W': { note: 18, name: 'D' },
+  '2': { note: 19, name: 'C♯/D♭' },
   '3': { note: 20, name: 'D♯/E♭' },
   'E': { note: 21, name: 'E' },
   'R': { note: 22, name: 'F' },
@@ -142,12 +142,12 @@ const NOTES = {
   '6': { note: 25, name: 'G♯/A♭' },
   'Y': { note: 26, name: 'A' },
   '7': { note: 27, name: 'A♯/B♭' },
-  'U': { note: 28, name: 'C' },
-  'I': { note: 29, name: 'C♯/D♭' },
-  '9': { note: 30, name: 'D' },
-  'O': { note: 31, name: 'D♯/E♭' },
-  '0': { note: 32, name: 'E' },
-  'P': { note: 33, name: 'F' },
+  'U': { note: 28, name: 'B' },
+  'I': { note: 29, name: 'C' },
+  '9': { note: 30, name: 'C♯/D♭' },
+  'O': { note: 31, name: 'D' },
+  '0': { note: 32, name: 'D♯/E♭' },
+  'P': { note: 33, name: 'E' },
 };
 
 const ACTIONS = [
@@ -368,7 +368,7 @@ class Controller {
 
     const getState = offset => x => {
       const index = (offset + x) - 80;
-      const char = Object.keys(MAPPINGS)[index];
+      const char = MAPPINGS.map(x => x[0])[index];
 
       if (this._enabled[char]) {
         if (this._mode === 'K') return this.format('▒', 34);
@@ -461,7 +461,7 @@ class Controller {
   }
 
   tap(ch, shift) {
-    if (this._mode !== 'K' && MAPPINGS[ch]) {
+    if (this._mode !== 'K' && MAPPINGS.some(x => x[0] === ch)) {
       this._enabled[ch] = !this._enabled[ch];
     }
 
@@ -542,6 +542,7 @@ class Controller {
     return true;
   }
 
+  // FIXME:  #1 vol ~51% (186,64,64) + noteon causes bug
   sendCC(controller, value) {
     this.out.send('cc', {
       channel: this._channel,
@@ -566,8 +567,8 @@ class Controller {
 
     setTimeout(() => {
       this.out.send('noteoff', {
+        velocity: 0,
         note: fixedNote,
-        velocity: this._master,
         channel: this._channel,
       });
       this.render();
