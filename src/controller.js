@@ -113,3 +113,11 @@ function onSysex(data) {
 function exit()
 {
 }
+
+function run() {
+  if (init && exit) {
+    println('kPad I - ready');
+  }
+}
+
+run();

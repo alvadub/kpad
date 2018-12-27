@@ -1,6 +1,3 @@
-const keypress = require('keypress');
-const easymidi = require('easymidi');
-
 // FIXME: how implement other virtual-controls like faders or such?
 // FIXME: how to draw on the CLI the current UI layout?
 // FIXME: split into smaller modules
@@ -186,7 +183,7 @@ const ACTIONS = [
 ];
 
 class Controller {
-  constructor() {
+  constructor({ keypress, easymidi }) {
     this._connected = false;
     this._channel = 10;
 
