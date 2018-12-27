@@ -5,11 +5,6 @@ host.defineMidiPorts(1, 1);
 
 const kPad = {};
 
-function log(msg) {
-  host.showPopupNotification('kPad - ' + msg);
-  println(msg);
-}
-
 function sendHex(value) {
   const encoded = value.split('').map(function(chunk) {
     return chunk.charCodeAt().toString(16);

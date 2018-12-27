@@ -534,15 +534,12 @@ class Controller {
     const key = TYPES.findIndex(x => x[0] === type);
 
     this.set(type, index, fixedValue);
-    this.out.send('cc', {
-      controller: (key * 16) + index,
-      channel: this._channel,
-      value: fixedValue,
-    });
-    return true;
+
+    // FIXME:  #1 vol ~51% (186,64,64) + noteon causes bug
+    // this.sendSysex(`C${(key * 16) + index} ${fixedValue}`);
+    return this.sendCC((key * 16) + index, fixedValue);
   }
 
-  // FIXME:  #1 vol ~51% (186,64,64) + noteon causes bug
   sendCC(controller, value) {
     this.out.send('cc', {
       channel: this._channel,
