@@ -1,4 +1,5 @@
 import {
+  CC_CONTROL,
   CC_PLAYBACK,
   CC_TRANSPORT,
   NOTES,
@@ -170,13 +171,8 @@ class Controller {
     };
 
     const getState = offset => x => {
-      const index = (offset + x) - 80;
-      const char = MAPPINGS.map(v => v[0])[index];
-
-      if (this._enabled[char]) {
-        if (this._mode === 'K') return format('▒', 34);
-        return format(char, 34);
-      }
+      const char = MAPPINGS.map(v => v[0])[(offset + x) - 80];
+      if (this._enabled[char]) return format('▒', 34);
     };
 
     const getPressed = chars => dchars(chars, ' ', this._mode === 'K', this._pressed);
@@ -268,7 +264,10 @@ class Controller {
   }
 
   tap(ch) {
-    if (this._mode !== 'K' && MAPPINGS.some(x => x[0] === ch)) {
+    const found = MAPPINGS.find(x => x[0] === ch);
+
+    if (this._mode !== 'K' && found) {
+      this.sendCC((CC_CONTROL + found[1].index) - 1, this._enabled[ch] ? 127 : 0);
       this._enabled[ch] = !this._enabled[ch];
     }
 

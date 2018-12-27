@@ -53,7 +53,7 @@ function onMidi(status, data1, data2) {
     if (isSend1(data1)) $.trackBank.getChannel(data1 - CC_SEND1).getSend(0).set(data2, 128);
     if (isSend2(data1)) $.trackBank.getChannel(data1 - CC_SEND2).getSend(1).set(data2, 128);
     if (isVolume(data1)) $.trackBank.getChannel(data1 - CC_VOLUME).getVolume().set(data2, 128);
-    if (isCC(data1)) $.userControls.getControl(data1 - CC_CONTROL).set(data2);
+    if (isCC(data1)) $.userControls.getControl(data1 - CC_CONTROL).set(data2, 128);
     if (data1 === CC_PLAYBACK) {
       if (isOn(data2)) $.transport.play();
       else $.transport.stop();
@@ -85,6 +85,7 @@ function init() {
   $.transport = host.createTransport();
   $.trackBank = host.createTrackBank(CC_LENGTH, 2, 0);
   $.cursorTrack = host.createCursorTrack(2, CC_LENGTH);
+  $.userControls = host.createUserControls(40);
 
   for (let i = 0; i < CC_LENGTH; i += 1) {
     sendState($.trackBank.getChannel(i).getMute(), i + CC_MUTE);
