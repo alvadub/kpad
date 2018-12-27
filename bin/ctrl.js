@@ -5,6 +5,20 @@ const easymidi = require('easymidi');
 // FIXME: how to draw on the CLI the current UI layout?
 // FIXME: split into smaller modules
 
+const CC_LENGTH = 16;
+const CC_MAX = 40;
+
+const CC_MUTE = 0;
+const CC_SOLO = 16;
+const CC_SEND1 = 32;
+const CC_SEND2 = 48;
+
+// FIXME: MIDI(186,64,64) + noteon causes bug
+const CC_VOLUME = 65;
+const CC_CONTROL = 81;
+const CC_PLAYBACK = 121;
+const CC_TRANSPORT = 122;
+
 ////// PADS
 //
 //    1 2 3 4 5 6 7 8 9 0 (1-10)
@@ -35,20 +49,27 @@ const MODES = [
 ];
 
 const TYPES = [
-  ['Mute', data1 => data1 < 16],
-  ['Solo', data1 => data1 < 32 && data1 >= 16],
-  ['Send1', data1 => data1 < 48 && data1 >= 32],
-  ['Send2', data1 => data1 < 64 && data1 >= 48],
-  ['Volume', data1 => data1 < 80 && data1 >= 64],
-  ['CC', data1 => data1 >= 80],
+  ['Mute', CC_MUTE],
+  ['Solo', CC_SOLO],
+  ['Send1', CC_SEND1],
+  ['Send2', CC_SEND2],
+  ['Volume', CC_VOLUME],
+  ['CC', CC_CONTROL],
 ];
+
+function isIn(data1, offset, maxLength) {
+  return data1 >= offset && data1 < (offset + maxLength);
+}
 
 function getType(msg) {
   const { controller, value } = msg;
 
   for (let i = 0; i < TYPES.length; i += 1) {
-    if (TYPES[i][1](controller)) {
-      return [TYPES[i][0], controller - (i * 16), value];
+    const type = TYPES[i][0];
+    const offset = TYPES[i][1];
+
+    if (isIn(controller, offset, type === 'CC' ? CC_MAX : CC_LENGTH)) {
+      return [type, controller - offset, value];
     }
   }
 
@@ -221,7 +242,7 @@ class Controller {
     });
 
     this.in.on('cc', msg => {
-      if (msg.controller === 120) {
+      if (msg.controller === CC_PLAYBACK) {
         this._playing = msg.value > 64;
       } else {
         this.set(...getType(msg));
@@ -424,12 +445,14 @@ class Controller {
 
   play() {
     this.log(this._playing ? 'PAUSE' : 'PLAY');
-    return this.sendCC(120, 127);
+    this.sendCC(CC_PLAYBACK, 127);
+    return true;
   }
 
   stop() {
     if (this._playing) this.log('STOP');
-    return this.sendCC(120, 0);
+    this.sendCC(CC_PLAYBACK, 0);
+    return true;
   }
 
   add() {
@@ -504,7 +527,7 @@ class Controller {
 
   left(shift) {
     if (shift) {
-      this.sendCC(121, 0);
+      this.sendCC(CC_TRANSPORT, 0);
     } else if (this._mode !== 'K') {
       this._active = Math.max(1, this._active - 1);
       this.render();
@@ -517,7 +540,7 @@ class Controller {
 
   right(shift) {
     if (shift) {
-      this.sendCC(121, 127);
+      this.sendCC(CC_TRANSPORT, 127);
     } else if (this._mode !== 'K') {
       this._active = Math.min(16, this._active + 1);
       this.render();
@@ -531,13 +554,11 @@ class Controller {
   send(type, index, offset) {
     const current = this.get(type, index);
     const fixedValue = Math.max(0, Math.min(127, (current || 0) + offset));
-    const key = TYPES.findIndex(x => x[0] === type);
 
     this.set(type, index, fixedValue);
+    this.sendCC(TYPES.find(x => x[0] === type)[1] + index, fixedValue);
 
-    // FIXME:  #1 vol ~51% (186,64,64) + noteon causes bug
-    // this.sendSysex(`C${(key * 16) + index} ${fixedValue}`);
-    return this.sendCC((key * 16) + index, fixedValue);
+    return true;
   }
 
   sendCC(controller, value) {

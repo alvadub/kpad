@@ -5,6 +5,19 @@ host.defineMidiPorts(1, 1);
 
 const kPad = {};
 
+const CC_CHANNEL = 186;
+const CC_LENGTH = 16;
+const CC_MAX = 40;
+
+const CC_MUTE = 0;
+const CC_SOLO = 16;
+const CC_SEND1 = 32;
+const CC_SEND2 = 48;
+const CC_VOLUME = 65;
+const CC_CONTROL = 81;
+const CC_PLAYBACK = 121;
+const CC_TRANSPORT = 122;
+
 function sendHex(value) {
   const encoded = value.split('').map(function(chunk) {
     return chunk.charCodeAt().toString(16);
@@ -15,18 +28,17 @@ function sendHex(value) {
 
 function sendState(source, offset) {
   source.addValueObserver(function (value) {
-    const level = Math.floor(value * 127);
-
-    sendMidi(186, offset, level);
+    sendMidi(CC_CHANNEL, offset, Math.floor(value * 127));
   });
 }
 
-function isCC(data1) { return data1 >= 80 && data1 < 120; }
-function isMute(data1) { return data1 < 16; }
-function isSolo(data1) { return data1 < 32 && data1 >= 16; }
-function isSend1(data1) { return data1 < 48 && data1 >= 32; }
-function isSend2(data1) { return data1 < 64 && data1 >= 48; }
-function isVolume(data1) { return data1 < 80 && data1 >= 64; }
+function isOn(data2) { return data2 > 64; }
+function isMute(data1) { return data1 >= CC_MUTE && data1 < (CC_MUTE + CC_LENGTH); }
+function isSolo(data1) { return data1 >= CC_SOLO && data1 < (CC_SOLO + CC_LENGTH); }
+function isSend1(data1) { return data1 >= CC_SEND1 && data1 < (CC_SEND1 + CC_LENGTH); }
+function isSend2(data1) { return data1 >= CC_SEND2 && data1 < (CC_SEND2 + CC_LENGTH); }
+function isVolume(data1) { return data1 >= CC_VOLUME && data1 < (CC_VOLUME + CC_LENGTH); }
+function isCC(data1) { return data1 >= CC_CONTROL && data1 < (CC_CONTROL + CC_MAX); }
 
 function init() {
   host.getMidiInPort(0).setMidiCallback(onMidi);
@@ -34,8 +46,8 @@ function init() {
   host.getMidiInPort(0).createNoteInput('', '??????').setShouldConsumeEvents(false);
 
   kPad.transport = host.createTransport();
-  kPad.trackBank = host.createTrackBank(16, 2, 8);
-  kPad.cursorTrack = host.createCursorTrack(2, 16);
+  kPad.trackBank = host.createTrackBank(CC_LENGTH, 2, 0);
+  kPad.cursorTrack = host.createCursorTrack(2, CC_LENGTH);
   // kPad.userControls = host.createUserControls(40);
 
   // 0-127 = 16 tracks
@@ -43,44 +55,44 @@ function init() {
   // 40 user-cc
   // 7  transport/etc
 
-  for (let i = 0; i < 16; i += 1) {
-    sendState(kPad.trackBank.getChannel(i).getMute(), i);
-    sendState(kPad.trackBank.getChannel(i).getSolo(), i + 16);
-    sendState(kPad.trackBank.getChannel(i).getSend(0).value(), i + 32);
-    sendState(kPad.trackBank.getChannel(i).getSend(1).value(), i + 48);
-    sendState(kPad.trackBank.getChannel(i).getVolume().value(), i + 64);
+  for (let i = 0; i < CC_LENGTH; i += 1) {
+    sendState(kPad.trackBank.getChannel(i).getMute(), i + CC_MUTE);
+    sendState(kPad.trackBank.getChannel(i).getSolo(), i + CC_SOLO);
+    sendState(kPad.trackBank.getChannel(i).getSend(0).value(), i + CC_SEND1);
+    sendState(kPad.trackBank.getChannel(i).getSend(1).value(), i + CC_SEND2);
+    sendState(kPad.trackBank.getChannel(i).getVolume().value(), i + CC_VOLUME);
   }
 
   // FIXME: CC-observers are missing
   // FIXME: track-selection is missing
 
-  for (let k = 0; k < 16; k += 1) {
+  for (let k = 0; k < CC_LENGTH; k += 1) {
     kPad.trackBank.getChannel(k).name().addValueObserver(8, '', function (value) {
       sendHex('L' + k + ' ' + value);
     });
   }
 
   kPad.transport.isPlaying().addValueObserver(function (value) {
-    sendMidi(186, 120, value ? 127 : 0);
+    sendMidi(CC_CHANNEL, CC_PLAYBACK, value ? 127 : 0);
   });
 }
 
 function onMidi(status, data1, data2) {
   println(status + ',' + data1 + ',' + data2);
 
-  if (status === 186) {
-    if (isMute(data1)) { kPad.trackBank.getChannel(data1).getMute().set(data2 !== 127) }
-    if (isSolo(data1)) { kPad.trackBank.getChannel(data1 - 16).getSolo().set(data2 !== 127); }
-    if (isSend1(data1)) { kPad.trackBank.getChannel(data1 - 32).getSend(0).set(data2, 128); }
-    if (isSend2(data1)) { kPad.trackBank.getChannel(data1 - 48).getSend(1).set(data2, 128); }
-    if (isVolume(data1)) { kPad.trackBank.getChannel(data1 - 64).getVolume().set(data2, 128); }
-    if (isCC(data1)) { kPad.userControls.getControl(j).set(data2); }
-    if (data1 === 120) {
-      if (data2 > 64) { kPad.transport.play(); }
+  if (status === CC_CHANNEL) {
+    if (isMute(data1)) { kPad.trackBank.getChannel(data1 - CC_MUTE).getMute().set(data2 !== 127) }
+    if (isSolo(data1)) { kPad.trackBank.getChannel(data1 - CC_SOLO).getSolo().set(data2 !== 127); }
+    if (isSend1(data1)) { kPad.trackBank.getChannel(data1 - CC_SEND1).getSend(0).set(data2, 128); }
+    if (isSend2(data1)) { kPad.trackBank.getChannel(data1 - CC_SEND2).getSend(1).set(data2, 128); }
+    if (isVolume(data1)) { kPad.trackBank.getChannel(data1 - CC_VOLUME).getVolume().set(data2, 128); }
+    if (isCC(data1)) { kPad.userControls.getControl(data1 - CC_CONTROL).set(data2); }
+    if (data1 === CC_PLAYBACK) {
+      if (isOn(data2)) { kPad.transport.play(); }
       else { kPad.transport.stop(); }
     }
-    if (data1 === 121) {
-      if (data2 > 64) { kPad.cursorTrack.selectNext(); }
+    if (data1 === CC_TRANSPORT) {
+      if (isOn(data2)) { kPad.cursorTrack.selectNext(); }
       else { kPad.cursorTrack.selectPrevious(); }
     }
   }
