@@ -1,186 +1,21 @@
-// FIXME: how implement other virtual-controls like faders or such?
-// FIXME: how to draw on the CLI the current UI layout?
-// FIXME: split into smaller modules
-
-const CC_LENGTH = 16;
-const CC_MAX = 40;
-
-const CC_MUTE = 0;
-const CC_SOLO = 16;
-const CC_SEND1 = 32;
-const CC_SEND2 = 48;
-
-// FIXME: MIDI(186,64,64) + noteon causes bug
-const CC_VOLUME = 65;
-const CC_CONTROL = 81;
-const CC_PLAYBACK = 121;
-const CC_TRANSPORT = 122;
-
-////// PADS
-//
-//    1 2 3 4 5 6 7 8 9 0 (1-10)
-//    Q W E R T Y U I O P (11-20)
-//    A S D F G H J K L Ñ (21-30)
-//    Z X C V B N M , . - (31-40)
-// ^
-//  `--type sequence + ENTER to on/off
-//
-//    Z X C V B N M , . - (arrangement timeline)
-//
-////// KEYBOARD
-//
-//   2 3   5 6 7   9 0
-//  Q W E R T Y U I O P
-//
-//     S D   G H J   L Ñ
-// <> Z X C V B N M , . -
-// ^
-//  `--down/up octaves
-
-const MODES = [
-  ['K', 'KBD'],
-  ['P', 'PADS'],
-  ['V', 'VOLUME'],
-  ['1', 'SEND1'],
-  ['2', 'SEND2'],
-];
-
-const TYPES = [
-  ['Mute', CC_MUTE],
-  ['Solo', CC_SOLO],
-  ['Send1', CC_SEND1],
-  ['Send2', CC_SEND2],
-  ['Volume', CC_VOLUME],
-  ['CC', CC_CONTROL],
-];
-
-function isIn(data1, offset, maxLength) {
-  return data1 >= offset && data1 < (offset + maxLength);
-}
-
-function getType(msg) {
-  const { controller, value } = msg;
-
-  for (let i = 0; i < TYPES.length; i += 1) {
-    const type = TYPES[i][0];
-    const offset = TYPES[i][1];
-
-    if (isIn(controller, offset, type === 'CC' ? CC_MAX : CC_LENGTH)) {
-      return [type, controller - offset, value];
-    }
-  }
-
-  return [undefined, controller, value]
-}
-
-// FIXME: read/write state and load/save from/to biwtwig? :V
-const MAPPINGS = [
-  ['1', { index: 1 }],
-  ['2', { index: 2 }],
-  ['3', { index: 3 }],
-  ['4', { index: 4 }],
-  ['5', { index: 5 }],
-  ['6', { index: 6 }],
-  ['7', { index: 7 }],
-  ['8', { index: 8 }],
-  ['9', { index: 9 }],
-  ['0', { index: 10 }],
-  ['Q', { index: 11 }],
-  ['W', { index: 12 }],
-  ['E', { index: 13 }],
-  ['R', { index: 14 }],
-  ['T', { index: 15 }],
-  ['Y', { index: 16 }],
-  ['U', { index: 17 }],
-  ['I', { index: 18 }],
-  ['O', { index: 19 }],
-  ['P', { index: 20 }],
-  ['A', { index: 21 }],
-  ['S', { index: 22 }],
-  ['D', { index: 23 }],
-  ['F', { index: 24 }],
-  ['G', { index: 25 }],
-  ['H', { index: 26 }],
-  ['J', { index: 27 }],
-  ['K', { index: 28 }],
-  ['L', { index: 29 }],
-  ['Ñ', { index: 30 }],
-  ['Z', { index: 31 }],
-  ['X', { index: 32 }],
-  ['C', { index: 33 }],
-  ['V', { index: 34 }],
-  ['B', { index: 35 }],
-  ['N', { index: 36 }],
-  ['M', { index: 37 }],
-  [',', { index: 38 }],
-  ['.', { index: 39 }],
-  ['-', { index: 40 }],
-];
-
-////// OCTAVES
-//
-// 1.  5-16
-// 2. 17-28
-// 3. 29-40
-// 4. 41-52
-// 5. 53-64
-// 6. 65-76
-// 7. 77-88
-// 8. 89-100
-
-const NOTES = {
-  ////// LOWER NOTES
-  'Z': { note: 5, name: 'C' },
-  'S': { note: 6, name: 'C♯/D♭' },
-  'X': { note: 7, name: 'D' },
-  'D': { note: 8, name: 'D♯/E♭' },
-  'C': { note: 9, name: 'E' },
-  'V': { note: 10, name: 'F' },
-  'G': { note: 11, name: 'F♯/G♭' },
-  'B': { note: 12, name: 'G' },
-  'H': { note: 13, name: 'G♯/A♭' },
-  'N': { note: 14, name: 'A' },
-  'J': { note: 15, name: 'A♯/B♭' },
-  'M': { note: 16, name: 'B' },
-  ',': { note: 17, name: 'C' },
-  'L': { note: 18, name: 'C♯/D♭' },
-  '.': { note: 19, name: 'D' },
-  'Ñ': { note: 20, name: 'D♯/E♭' },
-  '-': { note: 21, name: 'E' },
-
-  ////// HIGHER NOTES
-  'Q': { note: 17, name: 'C' },
-  'W': { note: 18, name: 'D' },
-  '2': { note: 19, name: 'C♯/D♭' },
-  '3': { note: 20, name: 'D♯/E♭' },
-  'E': { note: 21, name: 'E' },
-  'R': { note: 22, name: 'F' },
-  '5': { note: 23, name: 'F♯/G♭' },
-  'T': { note: 24, name: 'G' },
-  '6': { note: 25, name: 'G♯/A♭' },
-  'Y': { note: 26, name: 'A' },
-  '7': { note: 27, name: 'A♯/B♭' },
-  'U': { note: 28, name: 'B' },
-  'I': { note: 29, name: 'C' },
-  '9': { note: 30, name: 'C♯/D♭' },
-  'O': { note: 31, name: 'D' },
-  '0': { note: 32, name: 'D♯/E♭' },
-  'P': { note: 33, name: 'E' },
-};
-
-const ACTIONS = [
-  // FIXME: see if these can be sent also as sysex... or not
-  (ch, key, ctrl) => key && key.name === 's' && (key.ctrl || key.meta) && ctrl.sync(),
-  (ch, key, ctrl) => key && key.name === 'up' && ctrl.up(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'down' && ctrl.down(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'left' && ctrl.left(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'right' && ctrl.right(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'tab' && ctrl.mode(key && key.shift),
-  (ch, key, ctrl) => key && key.name === 'space' && ctrl.play(),
-  (ch, key, ctrl) => key && key.name === 'escape' && ctrl.stop(),
-  (ch, key, ctrl) => key && key.name === 'return' && ctrl.add(),
-  (ch, key, ctrl) => key && key.name === 'backspace' && ctrl.drop(),
-];
+import {
+  CC_PLAYBACK,
+  CC_TRANSPORT,
+  NOTES,
+  MODES,
+  TYPES,
+  ACTIONS,
+  MAPPINGS,
+  getType,
+  print,
+  clr,
+  format,
+  padding,
+  dpads,
+  dfadr,
+  dsel,
+  dchars,
+} from './lib/shared';
 
 class Controller {
   constructor({ keypress, easymidi }) {
@@ -222,7 +57,7 @@ class Controller {
     }
 
     this.in.on('sysex', msg => {
-      const [key, ...value] = msg.bytes.slice(1, msg.bytes.length - 1).map(function (x) {
+      const [key, ...value] = msg.bytes.slice(1, msg.bytes.length - 1).map(x => {
         return String.fromCharCode(x);
       }).join('').split(' ');
 
@@ -252,7 +87,7 @@ class Controller {
 
     process.stdin.on('keypress', (ch, key) => {
       if (key && key.ctrl && key.name === 'c') {
-        this.clear();
+        clr();
 
         process.stdin.pause();
         process.exit();
@@ -279,10 +114,6 @@ class Controller {
     process.stdin.resume();
   }
 
-  ln(value, suffix) {
-    process.stdout.write(`\r${value}\x1b[K${suffix || ''}`);
-  }
-
   log(msg) {
     this._message = msg;
     this.render();
@@ -293,55 +124,9 @@ class Controller {
     }, 500);
   }
 
-  spad(type, value, offset) {
-    const padding = Array.from({ length: offset - String(value).length }).join(' ');
-
-    if (type > 0) {
-      return `${value}${padding}`;
-    }
-
-    if (type < 0) {
-      return `${padding}${value}`;
-    }
-
-    const left = padding.substr(0, Math.floor(padding.length / 2));
-    const right = padding.substr(Math.floor(padding.length / 2));
-
-    return `${left}${value}${right}`;
-  }
-
-  dsel(length) {
-    return Array.from({ length }).map((_, k) => {
-      return this._mode !== 'K' && this._active - 1 === k ? '↑' : ' ';
-    }).join(' ');
-  }
-
-  dpads(length, empty, cb) {
-    return Array.from({ length }).map((_, k) => {
-      return (cb && cb(k)) || this.format(empty || '░', 2);
-    }).join(' ');
-  }
-
-  dfadr(length, cb) {
-    return Array.from({ length }).map((_, k) => {
-      return (cb && cb(k)) || this.format('░', 2);
-    }).join(' ');
-  }
-
-  dchars(values, glue) {
-    return values.split('').map(x => {
-      if (this._mode === 'K' && /[148AFK]/.test(x)) return ' ';
-      return !this._pressed[x] ? this.format(x, 2) : x;
-    }).join(glue || '');
-  }
-
-  format(value, code) {
-    return `\u001b[${code}m${value}\u001b[0m`;
-  }
-
   render(value) {
     const suffix = this._offset ? `\x1B[${this._offset}C` : '';
-    const label = this.spad(-1, this.format(MODES[this._offset][1], 2), 23);
+    const label = padding(-1, format(MODES[this._offset][1], 2), 23);
 
     let symbol = '⏏';
     let length = 9;
@@ -352,59 +137,62 @@ class Controller {
     }
 
     value = value
-      ? this.format(this.spad(0, value, length), '30;43')
-      : this.spad(0, '', length);
+      ? format(padding(0, value, length), '30;43')
+      : padding(0, '', length);
 
-    const status = this.format(`${symbol} ESC`, this._pressed.ESCAPE ? 1 : 2);
-    const octave = this.format(`${this._octave}♪`, this._mode !== 'K' ? 2 : 1);
-    const master = this.format(`${this.spad(-1, Math.round((this._master / 127) * 100), 4)}%`, this._mode !== 'K' ? 2 : 1);
+    const status = format(`${symbol} ESC`, this._pressed.ESCAPE ? 1 : 2);
+    const octave = format(`${this._octave}♪`, this._mode !== 'K' ? 2 : 1);
+    const master = format(`${padding(-1, Math.round((this._master / 127) * 100), 4)}%`, this._mode !== 'K' ? 2 : 1);
 
     const name = this._state.Name
-      ? this.format(this._state.Name[this._active - 1], this._mode === 'K' ? 2 : 1)
+      ? format(this._state.Name[this._active - 1], this._mode === 'K' ? 2 : 1)
       : '';
 
     const info = `  ${status} ${value} ${octave} ${master}  ${name}`;
 
-    this.ln(MODES.map((x, k) => (this._offset !== k ? this.format(x[0], 2) : x[0])).join('') + label + info, '\n');
+    print(MODES.map((x, k) => (this._offset !== k ? format(x[0], 2) : x[0])).join('') + label + info, '\n');
 
     const getLevel = (type, mode) => x => {
       if (this.get(type, x)) {
-        const value = ' ▁▂▃▄▅▆▇████'.substr(Math.floor(((this.get(type, x) / 127) * 100) / 10), 1);
+        const ch = ' ▁▂▃▄▅▆▇████'.substr(Math.floor(((this.get(type, x) / 127) * 100) / 10), 1);
 
-        if (this._mode !== mode) return this.format(value, 2);
+        if (this._mode !== mode) return format(ch, 2);
 
-        return value;
+        return ch;
       }
     };
 
     const getValue = x => {
       if (this._connected) {
-        if (this.get('Solo', x) > 64) return this.format(this._mode === 'P' ? '◆' : '◇', 33);
-        if (!(this.get('Mute', x) > 64)) return this.format(this._mode === 'P' ? '◆' : '◇', 32);
+        if (this.get('Solo', x) > 64) return format(this._mode === 'P' ? '◆' : '◇', 33);
+        if (!(this.get('Mute', x) > 64)) return format(this._mode === 'P' ? '◆' : '◇', 32);
       }
     };
 
     const getState = offset => x => {
       const index = (offset + x) - 80;
-      const char = MAPPINGS.map(x => x[0])[index];
+      const char = MAPPINGS.map(v => v[0])[index];
 
       if (this._enabled[char]) {
-        if (this._mode === 'K') return this.format('▒', 34);
-        return this.format(char, 34);
+        if (this._mode === 'K') return format('▒', 34);
+        return format(char, 34);
       }
     };
 
-    const pads = this.format('P', this._mode === 'P' ? 1 : 2);
-    const send1 = this.format('1', this._mode === '1' ? 1 : 2);
-    const send2 = this.format('2', this._mode === '2' ? 1 : 2);
-    const volume = this.format('V', this._mode === 'V' ? 1 : 2);
+    const getPressed = chars => dchars(chars, ' ', this._mode === 'K', this._pressed);
+    const getFader = (key, group, selected) => `${dfadr(16, getLevel(key, group))} ${selected}`;
+
+    const pads = format('P', this._mode === 'P' ? 1 : 2);
+    const send1 = format('1', this._mode === '1' ? 1 : 2);
+    const send2 = format('2', this._mode === '2' ? 1 : 2);
+    const volume = format('V', this._mode === 'V' ? 1 : 2);
 
     // FIXME: try to render one line at-once only?
-    this.ln(`${this.dpads(10, '░', getState(80))}  ${this.dchars('1234567890', ' ')}     ${this.dfadr(16, getLevel('Send2', '2'))} ${send2}`, '\n');
-    this.ln(`${this.dpads(10, '░', getState(90))}   ${this.dchars('QWERTYUIOP', ' ')}    ${this.dfadr(16, getLevel('Send1', '1'))} ${send1}`, '\n');
-    this.ln(`${this.dpads(10, '░', getState(100))}    ${this.dchars('ASDFGHJKLÑ', ' ')}   ${this.dfadr(16, getLevel('Volume', 'V'))} ${volume}`, '\n');
-    this.ln(`${this.dpads(10, '░', getState(110))}     ${this.dchars('ZXCVBNM,.-', ' ')}  ${this.dpads(16, '◇', getValue)} ${pads}`, '\n');
-    this.ln(`${this.format(this.spad(1, this._message || '', 45), 1)} ${this.dsel(16)}`, `\x1B[5A\r${suffix}`);
+    print(`${dpads(10, '░', getState(80))}  ${getPressed('1234567890')}     ${getFader('Send2', '2', send2)}`, '\n');
+    print(`${dpads(10, '░', getState(90))}   ${getPressed('QWERTYUIOP')}    ${getFader('Send1', '1', send1)}`, '\n');
+    print(`${dpads(10, '░', getState(100))}    ${getPressed('ASDFGHJKLÑ')}   ${getFader('Volume', 'V', volume)}`, '\n');
+    print(`${dpads(10, '░', getState(110))}     ${getPressed('ZXCVBNM,.-')}  ${dpads(16, '◇', getValue)} ${pads}`, '\n');
+    print(`${format(padding(1, this._message || '', 45), 1)} ${dsel(16, this._active - 1, this._mode !== 'K')}`, `\x1B[5A\r${suffix}`);
 
     return true;
   }
@@ -415,11 +203,6 @@ class Controller {
       if (clear) clear();
       this.render();
     }, ms || 50);
-  }
-
-  clear() {
-    for (let i = 0; i < 5; i += 1) this.ln('', '\n');
-    this.ln('', '\x1B[5A\r');
   }
 
   set(name, index, value) {
@@ -480,7 +263,7 @@ class Controller {
     return true;
   }
 
-  tap(ch, shift) {
+  tap(ch) {
     if (this._mode !== 'K' && MAPPINGS.some(x => x[0] === ch)) {
       this._enabled[ch] = !this._enabled[ch];
     }
