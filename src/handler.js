@@ -211,7 +211,11 @@ class Controller {
     }
 
     if (name !== 'Name') {
-      this.log(`${name} #${index + 1} ${Math.round((value / 127) * 100)}%`);
+      if (name === 'Mute' || name === 'Solo') {
+        this.log(`${name} #${index + 1} ${value > 64 ? 'ON' : 'OFF'}`);
+      } else {
+        this.log(`${name} #${index + 1} ${Math.round((value / 127) * 100)}%`);
+      }
     }
 
     this._state[name][index] = value;
