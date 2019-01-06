@@ -113,6 +113,32 @@ class Controller {
 
     process.stdin.setRawMode(true);
     process.stdin.resume();
+
+    // FIXME: memoize render helpers
+    this.getLevel = (type, mode) => x => {
+      if (this.get(type, x)) {
+        const ch = ' ▁▂▃▄▅▆▇████'.substr(Math.floor(((this.get(type, x) / 127) * 100) / 10), 1);
+
+        if (this._mode !== mode) return format(ch, 2);
+
+        return ch;
+      }
+    };
+
+    this.getValue = x => {
+      if (this._connected) {
+        if (this.get('Solo', x) > 64) return format(this._mode === 'P' ? '◆' : '◇', 33);
+        if (!(this.get('Mute', x) > 64)) return format(this._mode === 'P' ? '◆' : '◇', 32);
+      }
+    };
+
+    this.getState = offset => x => {
+      const char = MAPPINGS.map(v => v[0])[(offset + x) - 80];
+      if (this._enabled[char]) return format('▒', 34);
+    };
+
+    this.getPressed = chars => dchars(chars, ' ', this._mode === 'K', this._pressed);
+    this.getFader = (key, group, selected) => `${dfadr(16, this.getLevel(key, group))} ${selected}`;
   }
 
   log(msg) {
@@ -153,41 +179,16 @@ class Controller {
 
     print(MODES.map((x, k) => (this._offset !== k ? format(x[0], 2) : x[0])).join('') + label + info, '\n');
 
-    const getLevel = (type, mode) => x => {
-      if (this.get(type, x)) {
-        const ch = ' ▁▂▃▄▅▆▇████'.substr(Math.floor(((this.get(type, x) / 127) * 100) / 10), 1);
-
-        if (this._mode !== mode) return format(ch, 2);
-
-        return ch;
-      }
-    };
-
-    const getValue = x => {
-      if (this._connected) {
-        if (this.get('Solo', x) > 64) return format(this._mode === 'P' ? '◆' : '◇', 33);
-        if (!(this.get('Mute', x) > 64)) return format(this._mode === 'P' ? '◆' : '◇', 32);
-      }
-    };
-
-    const getState = offset => x => {
-      const char = MAPPINGS.map(v => v[0])[(offset + x) - 80];
-      if (this._enabled[char]) return format('▒', 34);
-    };
-
-    const getPressed = chars => dchars(chars, ' ', this._mode === 'K', this._pressed);
-    const getFader = (key, group, selected) => `${dfadr(16, getLevel(key, group))} ${selected}`;
-
     const pads = format('P', this._mode === 'P' ? 1 : 2);
     const send1 = format('1', this._mode === '1' ? 1 : 2);
     const send2 = format('2', this._mode === '2' ? 1 : 2);
     const volume = format('V', this._mode === 'V' ? 1 : 2);
 
     // FIXME: try to render one line at-once only?
-    print(`${dpads(10, '░', getState(80))}  ${getPressed('1234567890')}     ${getFader('Send2', '2', send2)}`, '\n');
-    print(`${dpads(10, '░', getState(90))}   ${getPressed('QWERTYUIOP')}    ${getFader('Send1', '1', send1)}`, '\n');
-    print(`${dpads(10, '░', getState(100))}    ${getPressed('ASDFGHJKLÑ')}   ${getFader('Volume', 'V', volume)}`, '\n');
-    print(`${dpads(10, '░', getState(110))}     ${getPressed('ZXCVBNM,.-')}  ${dpads(16, '◇', getValue)} ${pads}`, '\n');
+    print(`${dpads(10, '░', this.getState(80))}  ${this.getPressed('1234567890')}     ${this.getFader('Send2', '2', send2)}`, '\n');
+    print(`${dpads(10, '░', this.getState(90))}   ${this.getPressed('QWERTYUIOP')}    ${this.getFader('Send1', '1', send1)}`, '\n');
+    print(`${dpads(10, '░', this.getState(100))}    ${this.getPressed('ASDFGHJKLÑ')}   ${this.getFader('Volume', 'V', volume)}`, '\n');
+    print(`${dpads(10, '░', this.getState(110))}   ${this.getPressed('<ZXCVBNM,.-')}  ${dpads(16, '◇', this.getValue)} ${pads}`, '\n');
     print(`${format(padding(1, this._message || '', 45), 1)} ${dsel(16, this._active - 1, this._mode !== 'K')}`, `\x1B[5A\r${suffix}`);
 
     return true;
